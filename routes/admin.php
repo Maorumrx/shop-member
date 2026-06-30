@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\BranchController;
 use App\Http\Controllers\Admin\MemberController;
 use App\Http\Controllers\Admin\PackageController;
 use App\Http\Controllers\Admin\PurchaseController;
+use App\Http\Controllers\Admin\RedemptionController;
 use App\Http\Controllers\Admin\ShopSettingController;
 use Illuminate\Support\Facades\Route;
 
@@ -73,4 +74,10 @@ Route::middleware(['auth', 'verified', 'role:owner,staff'])->group(function () {
 
     // Sell a package to a member (the Phase-4 core). Atomic mint via PurchaseService.
     Route::post('members/{member}/purchases', [PurchaseController::class, 'store'])->name('members.purchases.store');
+
+    // Redeem (ตัดสิทธิ์) a member's entitlements (the Phase-5 revenue core). Atomic,
+    // lock-protected FIFO consumption via RedemptionService — decrement + one redeem
+    // ledger row per touched entitlement, coupled redeem_group siblings, lot rollup.
+    // Branch context = the acting staff's home branch (owner = null = unscoped, §5.5).
+    Route::post('members/{member}/redemptions', [RedemptionController::class, 'store'])->name('members.redemptions.store');
 });
