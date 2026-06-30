@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -34,6 +35,20 @@ class Branch extends Model
         return [
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Scope to active branches only (`is_active = true`). Used by the catalog
+     * admin to populate branch pickers (Package create/edit) — inactive
+     * branches stay selectable on existing packages but aren't offered for new
+     * scoping (architecture.md §3.1, §3.4).
+     *
+     * @param  Builder<Branch>  $query
+     * @return Builder<Branch>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
     }
 
     /**

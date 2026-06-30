@@ -19,6 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
             // Member (LINE LIFF / `members` guard) routes — loaded under the
             // `web` group so sessions + CSRF apply (architecture.md §3.3).
             Route::middleware('web')->group(base_path('routes/member.php'));
+
+            // Admin catalog (owner-only Branches + Packages, Phase 3) — loaded
+            // under `web` for sessions/CSRF/Inertia; per-route auth lives in the
+            // file via ['auth', 'verified', 'role:owner'].
+            Route::middleware('web')->group(base_path('routes/admin.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
