@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Member;
 use App\Models\User;
 
 return [
@@ -38,9 +39,19 @@ return [
     */
 
     'guards' => [
+        // Admin domain: existing Fortify auth on `users` (owner|staff).
+        // Default guard — keep untouched (architecture.md §3.2, §5.4).
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
+        ],
+
+        // Member domain: customers authenticated via LINE LIFF id-token
+        // verification (architecture.md §3.3, §5.4). Separate session guard
+        // and provider so a customer record can never satisfy an admin policy.
+        'members' => [
+            'driver' => 'session',
+            'provider' => 'members',
         ],
     ],
 
@@ -65,6 +76,13 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        // Member identity domain (architecture.md §3.3). Distinct Eloquent
+        // provider backing the `members` guard.
+        'members' => [
+            'driver' => 'eloquent',
+            'model' => Member::class,
         ],
 
         // 'users' => [

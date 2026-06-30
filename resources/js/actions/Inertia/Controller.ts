@@ -239,6 +239,166 @@ Controllere19ee86e9cf603ce1a59a1ec5d21dec5Form.head = (options?: RouteQueryOptio
 })
 
 Controllere19ee86e9cf603ce1a59a1ec5d21dec5.form = Controllere19ee86e9cf603ce1a59a1ec5d21dec5Form
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+const Controller0a7c32555a03ff5f14cb278be0ef136d = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: Controller0a7c32555a03ff5f14cb278be0ef136d.url(options),
+    method: 'get',
+})
+
+Controller0a7c32555a03ff5f14cb278be0ef136d.definition = {
+    methods: ["get","head"],
+    url: '/member',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+Controller0a7c32555a03ff5f14cb278be0ef136d.url = (options?: RouteQueryOptions) => {
+    return Controller0a7c32555a03ff5f14cb278be0ef136d.definition.url + queryParams(options)
+}
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+Controller0a7c32555a03ff5f14cb278be0ef136d.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: Controller0a7c32555a03ff5f14cb278be0ef136d.url(options),
+    method: 'get',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+Controller0a7c32555a03ff5f14cb278be0ef136d.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: Controller0a7c32555a03ff5f14cb278be0ef136d.url(options),
+    method: 'head',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+const Controller0a7c32555a03ff5f14cb278be0ef136dForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: Controller0a7c32555a03ff5f14cb278be0ef136d.url(options),
+    method: 'get',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+Controller0a7c32555a03ff5f14cb278be0ef136dForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: Controller0a7c32555a03ff5f14cb278be0ef136d.url(options),
+    method: 'get',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+Controller0a7c32555a03ff5f14cb278be0ef136dForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: Controller0a7c32555a03ff5f14cb278be0ef136d.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+Controller0a7c32555a03ff5f14cb278be0ef136d.form = Controller0a7c32555a03ff5f14cb278be0ef136dForm
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member/dashboard'
+*/
+const Controller9602e6e8b58438e51140ba18b2644c74 = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: Controller9602e6e8b58438e51140ba18b2644c74.url(options),
+    method: 'get',
+})
+
+Controller9602e6e8b58438e51140ba18b2644c74.definition = {
+    methods: ["get","head"],
+    url: '/member/dashboard',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member/dashboard'
+*/
+Controller9602e6e8b58438e51140ba18b2644c74.url = (options?: RouteQueryOptions) => {
+    return Controller9602e6e8b58438e51140ba18b2644c74.definition.url + queryParams(options)
+}
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member/dashboard'
+*/
+Controller9602e6e8b58438e51140ba18b2644c74.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: Controller9602e6e8b58438e51140ba18b2644c74.url(options),
+    method: 'get',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member/dashboard'
+*/
+Controller9602e6e8b58438e51140ba18b2644c74.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: Controller9602e6e8b58438e51140ba18b2644c74.url(options),
+    method: 'head',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member/dashboard'
+*/
+const Controller9602e6e8b58438e51140ba18b2644c74Form = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: Controller9602e6e8b58438e51140ba18b2644c74.url(options),
+    method: 'get',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member/dashboard'
+*/
+Controller9602e6e8b58438e51140ba18b2644c74Form.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: Controller9602e6e8b58438e51140ba18b2644c74.url(options),
+    method: 'get',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member/dashboard'
+*/
+Controller9602e6e8b58438e51140ba18b2644c74Form.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: Controller9602e6e8b58438e51140ba18b2644c74.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+Controller9602e6e8b58438e51140ba18b2644c74.form = Controller9602e6e8b58438e51140ba18b2644c74Form
 
 /**
 * Multiple routes resolve to \Inertia\Controller::Controller, so this export is a
@@ -249,6 +409,8 @@ const Controller = {
     '/': Controller980bb49ee7ae63891f1d891d2fbcf1c9,
     '/dashboard': Controller42a740574ecbfbac32f8cc353fc32db9,
     '/settings/appearance': Controllere19ee86e9cf603ce1a59a1ec5d21dec5,
+    '/member': Controller0a7c32555a03ff5f14cb278be0ef136d,
+    '/member/dashboard': Controller9602e6e8b58438e51140ba18b2644c74,
 }
 
 export default Controller

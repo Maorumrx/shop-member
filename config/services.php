@@ -35,4 +35,16 @@ return [
         ],
     ],
 
+    /*
+    | LINE Login / LIFF (member guard). The login channel id/secret are the
+    | OAuth credentials of the LINE Login channel backing the LIFF app; the
+    | LIFF id is consumed by the Vue front-end to initialise the LIFF SDK.
+    | Verified server-side by App\Services\Line\LiffVerifyService.
+    */
+    'line' => [
+        'login_channel_id' => env('LINE_LOGIN_CHANNEL_ID'),
+        'login_channel_secret' => env('LINE_LOGIN_CHANNEL_SECRET'),
+        'liff_id' => env('LINE_LIFF_ID'),
+    ],
+
 ];

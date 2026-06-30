@@ -41,6 +41,10 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            // PUBLIC LIFF app id consumed by the Vue member login page to boot the
+            // LINE LIFF SDK. The channel secret is NEVER shared — verification of the
+            // returned ID token happens server-side in LiffVerifyService.
+            'lineLiffId' => config('services.line.liff_id'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

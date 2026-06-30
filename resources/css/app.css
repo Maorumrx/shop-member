@@ -7,6 +7,61 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+  Warm-White Soft / Beauty design tokens (docs/design-system.md).
+  Member side = soft/rounded/motion · Admin = denser/scannable. One palette.
+
+  NOTE on naming: the shadcn-based starter kit already maps `--color-primary`,
+  `--color-accent` and `--color-border` to its runtime light/dark vars (used all
+  over the admin UI). Overriding those globally here would recolour the admin
+  theme, so the three colliding keys are exposed under member-namespaced aliases
+  (`--color-member-primary`, `--color-member-accent`, `--color-member-border`).
+  Member components reference these warm tokens directly; every other token below
+  is new and collision-free, so it keeps its documented name verbatim.
+*/
+@theme {
+    /* ---- Base surfaces & ink ---- */
+    --color-bg: #faf6f0; /* warm white */
+    --color-surface: #ffffff; /* card/sheet */
+    --color-member-border: #ede4d9; /* soft faint line (Member) */
+    --color-border-strong: #9c8772; /* line/divider for Admin tables — 3.19:1 vs bg */
+
+    --color-ink: #4a4039; /* primary text  10.08 / 9.36 */
+    --color-ink-muted: #6e6258; /* secondary text  5.91 / 5.49 */
+
+    /* ---- Brand ---- */
+    --color-member-primary: #c2a18c; /* backgrounds / large text only — never white text */
+    --color-primary-strong: #8b6a52; /* white-text CTA  4.91:1 */
+    --color-member-accent: #e8d5c4; /* soft button: surface + text-ink  7.08:1 */
+    --color-sage: #9fb0a3; /* decorative / large text only — never white text */
+
+    /* ---- State: warning (warm amber) — near-expiry ---- */
+    --color-warning: #92652b; /* strong: white text 5.10:1 */
+    --color-warning-surface: #f7e6c8; /* soft: text-ink 8.21:1 */
+
+    /* ---- State: danger (muted terracotta) — expired / insufficient ---- */
+    --color-danger: #a24b3b; /* strong: white text 5.82:1 */
+    --color-danger-surface: #f6dad2; /* soft: text-ink 7.62:1 */
+
+    /* ---- State: success (soft green) — redeemed ---- */
+    --color-success: #4f7a55; /* strong: white text 4.94:1 */
+    --color-success-surface: #dce8dc; /* soft: text-ink 7.98:1 */
+
+    /* ---- State: info (muted blue) ---- */
+    --color-info: #4a6e86; /* strong: white text 5.43:1 */
+    --color-info-surface: #dce6ee; /* soft: text-ink 7.97:1 */
+
+    /* ---- a11y / UI ---- */
+    --color-focus: #7a5640; /* focus ring  6.03:1 vs bg */
+    --color-disabled-bg: #efe9e1;
+    --color-disabled-text: #a89c8f; /* intentionally faint — WCAG 1.4.3 disabled exception */
+
+    /* ---- Warm-toned shadows (never black) ---- */
+    --shadow-soft: 0 2px 8px rgba(74, 64, 57, 0.08); /* Member */
+    --shadow-card: 0 6px 20px rgba(74, 64, 57, 0.1); /* Member raised */
+    --shadow-admin: 0 1px 2px rgba(74, 64, 57, 0.14); /* Admin dense */
+}
+
 @theme inline {
     --font-sans:
         Instrument Sans, ui-sans-serif, system-ui, sans-serif,

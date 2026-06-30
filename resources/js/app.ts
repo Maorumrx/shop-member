@@ -13,6 +13,10 @@ createInertiaApp({
         switch (true) {
             case name === 'Welcome':
                 return null;
+            // Member (LINE LIFF) pages own their own MemberLayout internally and
+            // must NOT inherit the admin AppLayout (sidebar/header).
+            case name.startsWith('Member/'):
+                return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):

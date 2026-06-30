@@ -18,6 +18,8 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
+            /** PUBLIC LINE LIFF app id (services.line.liff_id). Null until configured. */
+            lineLiffId: string | null;
             sidebarOpen: boolean;
             [key: string]: unknown;
         };
