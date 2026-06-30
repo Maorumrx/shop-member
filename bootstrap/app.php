@@ -20,9 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // `web` group so sessions + CSRF apply (architecture.md §3.3).
             Route::middleware('web')->group(base_path('routes/member.php'));
 
-            // Admin catalog (owner-only Branches + Packages, Phase 3) — loaded
-            // under `web` for sessions/CSRF/Inertia; per-route auth lives in the
-            // file via ['auth', 'verified', 'role:owner'].
+            // Admin routes (Phase 3 catalog = owner-only; Phase 4 members/sales =
+            // owner+staff) — loaded under `web` for sessions/CSRF/Inertia; per-route
+            // auth (role:owner / role:owner,staff) lives inside routes/admin.php.
             Route::middleware('web')->group(base_path('routes/admin.php'));
         },
     )
