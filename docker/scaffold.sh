@@ -58,7 +58,10 @@ if [ ! -f "$ROOT/artisan" ]; then
   rm -f "$ROOT/database/database.sqlite"
   [ -f "$ROOT/artisan" ] || { echo "!! scaffold ล้มเหลว: ไม่พบ artisan หลังย้าย"; exit 1; }
 else
-  echo "==> [1-3/7] พบ artisan แล้ว — ข้าม scaffold (resume mode)"
+  echo "==> [1-3/7] พบ artisan แล้ว — ข้าม scaffold (resume/fresh-clone mode)"
+  # fresh clone: โค้ด commit แล้วแต่ deps/.env ยังไม่มา → เติมให้ครบ
+  [ -d vendor ] || { echo "    composer install (ไม่พบ vendor/)"; composer install; }
+  [ -f .env ]   || { echo "    สร้าง .env จาก .env.example"; cp .env.example .env; }
 fi
 
 echo "==> [4/7] ตั้งค่า .env (ชื่อแอป + ชี้ MariaDB service 'db') (idempotent)"
