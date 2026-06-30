@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -10,7 +11,12 @@ import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import type { NavItem } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
+const page = usePage();
+
+// The "ร้านค้า" (shop brand) settings page is owner-only; staff never see the item.
+const isOwner = computed(() => page.props.auth.user.role === 'owner');
+
+const sidebarNavItems = computed<NavItem[]>(() => [
     {
         title: 'Profile',
         href: editProfile(),
@@ -23,7 +29,15 @@ const sidebarNavItems: NavItem[] = [
         title: 'Appearance',
         href: editAppearance(),
     },
-];
+    ...(isOwner.value
+        ? [
+              {
+                  title: 'ร้านค้า',
+                  href: '/settings/shop',
+              },
+          ]
+        : []),
+]);
 
 const { isCurrentOrParentUrl } = useCurrentUrl();
 </script>

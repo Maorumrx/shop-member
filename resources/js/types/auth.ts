@@ -1,8 +1,12 @@
+/** Roles a shop user can hold. `owner` gates shop-level settings (e.g. branding). */
+export type UserRole = 'owner' | 'staff';
+
 export type User = {
     id: number;
     name: string;
     email: string;
     avatar?: string;
+    role: UserRole;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
     created_at: string;

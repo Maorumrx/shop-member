@@ -21,6 +21,15 @@ declare module '@inertiajs/core' {
             /** PUBLIC LINE LIFF app id (services.line.liff_id). Null until configured. */
             lineLiffId: string | null;
             sidebarOpen: boolean;
+            /**
+             * Shop brand, shared globally (read by the sidebar/header `AppLogo`).
+             * `name` is the already-resolved display name (server applies the
+             * `config('app.name')` fallback); `logoUrl` is null when no logo set.
+             */
+            shop: {
+                name: string;
+                logoUrl: string | null;
+            };
             [key: string]: unknown;
         };
     }

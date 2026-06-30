@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\BranchController;
 use App\Http\Controllers\Admin\MemberController;
 use App\Http\Controllers\Admin\PackageController;
 use App\Http\Controllers\Admin\PurchaseController;
+use App\Http\Controllers\Admin\ShopSettingController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -35,6 +36,14 @@ Route::middleware(['auth', 'verified', 'role:owner'])->group(function () {
     Route::put('packages/{package}', [PackageController::class, 'update'])->name('packages.update');
     Route::delete('packages/{package}', [PackageController::class, 'destroy'])->name('packages.destroy');
     Route::patch('packages/{package}/toggle', [PackageController::class, 'toggle'])->name('packages.toggle');
+
+    // Shop brand settings — owner-editable shop name + logo that replace the
+    // hardcoded starter-kit name/logo in the sidebar. Logo upload is multipart,
+    // so the save is a POST (not PUT). Lives in the owner-only group so staff
+    // cannot reach it.
+    Route::get('settings/shop', [ShopSettingController::class, 'edit'])->name('shop.edit');
+    Route::post('settings/shop', [ShopSettingController::class, 'update'])->name('shop.update');
+    Route::delete('settings/shop/logo', [ShopSettingController::class, 'destroyLogo'])->name('shop.logo.destroy');
 });
 
 /*
