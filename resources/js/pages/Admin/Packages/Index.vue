@@ -74,7 +74,7 @@ function confirmDelete(): void {
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-2">
                 <Package class="size-5 text-muted-foreground" />
-                <h1 class="text-xl font-semibold">แพ็คเกจ</h1>
+                <h1 class="font-heading text-xl font-semibold">แพ็คเกจ</h1>
             </div>
 
             <Button as-child>
@@ -107,7 +107,9 @@ function confirmDelete(): void {
                         class="border-t border-border"
                     >
                         <td class="px-4 py-3 font-medium">{{ pkg.name }}</td>
-                        <td class="px-4 py-3 text-right tabular-nums">
+                        <td
+                            class="px-4 py-3 text-right font-heading font-semibold tabular-nums"
+                        >
                             {{ formatBaht(pkg.price) }}
                         </td>
                         <td class="px-4 py-3">

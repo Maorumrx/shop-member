@@ -267,7 +267,9 @@ function sell(): void {
                         <p class="text-sm text-muted-foreground">
                             {{ line.item_name }}
                         </p>
-                        <p class="text-lg font-semibold tabular-nums">
+                        <p
+                            class="font-heading text-2xl font-bold tabular-nums"
+                        >
                             {{ line.remaining }} ครั้ง
                         </p>
                     </div>
@@ -383,7 +385,7 @@ function sell(): void {
                                 <span v-else>ไม่หมดอายุ</span>
                             </p>
                         </div>
-                        <p class="text-sm font-semibold tabular-nums">
+                        <p class="font-heading text-base font-bold tabular-nums">
                             {{ formatBaht(lot.price_paid) }}
                         </p>
                     </div>
@@ -403,7 +405,9 @@ function sell(): void {
                                     {{ STATUS_LABEL[ent.status] }}
                                 </Badge>
                             </div>
-                            <span class="tabular-nums text-muted-foreground">
+                            <span
+                                class="font-heading font-semibold tabular-nums text-muted-foreground"
+                            >
                                 {{ ent.qty_remaining }} / {{ ent.qty_total }}
                             </span>
                         </li>

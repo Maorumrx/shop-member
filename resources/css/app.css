@@ -63,10 +63,16 @@
 }
 
 @theme inline {
+    /* ---- Typography: 2-font system (docs/design-system.md) ----
+       Body default everywhere = IBM Plex Sans Thai; headings + prominent
+       numbers = KoHo (applied via the `font-heading` utility). Only two
+       families load (see app.blade.php CDN link). */
     --font-sans:
-        Instrument Sans, ui-sans-serif, system-ui, sans-serif,
+        'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
+    --font-heading:
+        'KoHo', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
@@ -138,7 +144,7 @@
     body,
     html {
         --font-sans:
-            'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+            'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif,
             'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
             'Noto Color Emoji';
     }

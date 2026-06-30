@@ -108,7 +108,7 @@ function confirmDelete(): void {
         <div class="flex items-center justify-between gap-4">
             <div class="flex items-center gap-2">
                 <Building2 class="size-5 text-muted-foreground" />
-                <h1 class="text-xl font-semibold">สาขา</h1>
+                <h1 class="font-heading text-xl font-semibold">สาขา</h1>
             </div>
             <Button @click="openCreate">
                 <Plus />

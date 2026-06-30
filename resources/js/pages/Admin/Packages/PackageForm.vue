@@ -112,7 +112,7 @@ function lineError(
     <form class="flex flex-col gap-6" @submit.prevent="emit('submit')">
         <!-- Header fields -->
         <div class="rounded-xl border border-border p-6">
-            <h2 class="mb-4 text-base font-semibold">รายละเอียดแพ็คเกจ</h2>
+            <h2 class="mb-4 font-heading text-base font-semibold">รายละเอียดแพ็คเกจ</h2>
 
             <div class="grid gap-6 md:grid-cols-2">
                 <div class="grid gap-2">
@@ -197,7 +197,7 @@ function lineError(
         <!-- Lines repeater -->
         <div class="rounded-xl border border-border p-6">
             <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-base font-semibold">รายการในแพ็คเกจ</h2>
+                <h2 class="font-heading text-base font-semibold">รายการในแพ็คเกจ</h2>
                 <Button
                     type="button"
                     variant="outline"

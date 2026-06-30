@@ -39,7 +39,9 @@ onUnmounted(() => {
     >
         <main class="w-full max-w-sm">
             <header v-if="title" class="mb-6 text-center">
-                <h1 class="text-xl font-semibold text-[var(--color-ink)]">
+                <h1
+                    class="font-heading text-xl font-semibold text-[var(--color-ink)]"
+                >
                     {{ title }}
                 </h1>
             </header>

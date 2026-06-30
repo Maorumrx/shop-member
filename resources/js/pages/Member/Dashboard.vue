@@ -26,7 +26,9 @@ function logout(): void {
     <MemberLayout title="ยินดีต้อนรับ">
         <div class="flex flex-col items-center gap-6 text-center">
             <div class="flex flex-col gap-2">
-                <h2 class="text-lg font-semibold text-[var(--color-ink)]">
+                <h2
+                    class="font-heading text-lg font-semibold text-[var(--color-ink)]"
+                >
                     เข้าสู่ระบบสำเร็จ
                 </h2>
                 <p class="text-sm text-[var(--color-ink-muted)]">

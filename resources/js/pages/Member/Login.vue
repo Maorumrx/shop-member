@@ -124,7 +124,7 @@ onMounted(() => {
             v-else-if="phase === 'unconfigured'"
             class="flex flex-col items-center gap-4 rounded-2xl bg-[var(--color-warning-surface)] p-6 text-center"
         >
-            <h2 class="text-base font-semibold text-[var(--color-ink)]">
+            <h2 class="font-heading text-base font-semibold text-[var(--color-ink)]">
                 ยังไม่ได้ตั้งค่า LIFF
             </h2>
             <p class="text-sm text-[var(--color-ink-muted)]">
@@ -139,7 +139,7 @@ onMounted(() => {
             class="flex flex-col items-center gap-5 rounded-2xl bg-[var(--color-danger-surface)] p-6 text-center"
             role="alert"
         >
-            <h2 class="text-base font-semibold text-[var(--color-ink)]">
+            <h2 class="font-heading text-base font-semibold text-[var(--color-ink)]">
                 เข้าสู่ระบบไม่สำเร็จ
             </h2>
             <p class="text-sm text-[var(--color-ink)]">
