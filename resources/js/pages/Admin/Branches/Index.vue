@@ -9,10 +9,11 @@
  * table dense. Flash toasts fire globally — no per-page toast handling here.
  */
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Building2, Pencil, Plus, Trash2 } from '@lucide/vue';
+import { Building2, CalendarClock, Pencil, Plus, Trash2 } from '@lucide/vue';
 import { ref } from 'vue';
 import Pagination from '@/components/admin/Pagination.vue';
 import InputError from '@/components/InputError.vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -107,6 +108,59 @@ function confirmDelete(): void {
         },
     });
 }
+
+/**
+ * Per-branch booking settings editor (Phase 7). `bookingBranch` = the branch
+ * whose config the dialog is editing (null = closed). Pre-filled from the row's
+ * `booking`, or sensible defaults when the branch has no settings row yet.
+ * Submits H:i times; the backend appends ':00' before persisting.
+ */
+const bookingBranch = ref<BranchRow | null>(null);
+
+const bookingForm = useForm<{
+    is_bookable: boolean;
+    slot_capacity: number;
+    slot_length_minutes: number;
+    open_time: string;
+    close_time: string;
+    max_advance_days: number;
+}>({
+    is_bookable: false,
+    slot_capacity: 1,
+    slot_length_minutes: 60,
+    open_time: '10:00',
+    close_time: '20:00',
+    max_advance_days: 30,
+});
+
+function openBooking(branch: BranchRow): void {
+    bookingBranch.value = branch;
+    bookingForm.clearErrors();
+
+    const b = branch.booking;
+    bookingForm.is_bookable = b?.is_bookable ?? false;
+    bookingForm.slot_capacity = b?.slot_capacity ?? 1;
+    bookingForm.slot_length_minutes = b?.slot_length_minutes ?? 60;
+    bookingForm.open_time = b?.open_time ?? '10:00';
+    bookingForm.close_time = b?.close_time ?? '20:00';
+    bookingForm.max_advance_days = b?.max_advance_days ?? 30;
+}
+
+function submitBooking(): void {
+    if (!bookingBranch.value) {
+        return;
+    }
+
+    bookingForm.put(
+        `/branches/${bookingBranch.value.id}/booking-settings`,
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                bookingBranch.value = null;
+            },
+        },
+    );
+}
 </script>
 
 <template>
@@ -130,6 +184,7 @@ function confirmDelete(): void {
                     <tr>
                         <th class="px-4 py-3 font-medium">ชื่อสาขา</th>
                         <th class="px-4 py-3 font-medium">สถานะ</th>
+                        <th class="px-4 py-3 font-medium">การจอง</th>
                         <th class="px-4 py-3 text-right font-medium">จัดการ</th>
                     </tr>
                 </thead>
@@ -164,7 +219,26 @@ function confirmDelete(): void {
                             </div>
                         </td>
                         <td class="px-4 py-3">
+                            <Badge
+                                v-if="branch.booking?.is_bookable"
+                                variant="secondary"
+                            >
+                                เปิดจอง
+                            </Badge>
+                            <span v-else class="text-xs text-muted-foreground">
+                                ปิดจอง
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
                             <div class="flex items-center justify-end gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    @click="openBooking(branch)"
+                                >
+                                    <CalendarClock />
+                                    ตั้งค่าการจอง
+                                </Button>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -187,7 +261,7 @@ function confirmDelete(): void {
                     </tr>
                     <tr v-if="props.branches.data.length === 0">
                         <td
-                            colspan="3"
+                            colspan="4"
                             class="px-4 py-10 text-center text-muted-foreground"
                         >
                             ยังไม่มีสาขา — กด “เพิ่มสาขา” เพื่อเริ่มต้น
@@ -285,6 +359,125 @@ function confirmDelete(): void {
                     ลบ
                 </Button>
             </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <!-- Booking settings (Phase 7) — per-branch slot config -->
+    <Dialog
+        :open="bookingBranch !== null"
+        @update:open="(open) => !open && (bookingBranch = null)"
+    >
+        <DialogContent>
+            <form @submit.prevent="submitBooking">
+                <DialogHeader>
+                    <DialogTitle>
+                        ตั้งค่าการจอง — {{ bookingBranch?.name }}
+                    </DialogTitle>
+                    <DialogDescription>
+                        กำหนดช่วงเวลาให้บริการ ความยาวคิว
+                        จำนวนที่รับได้ต่อคิว และระยะเวลาที่จองล่วงหน้าได้
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="grid gap-4 py-4">
+                    <div class="flex items-center gap-2">
+                        <Switch
+                            id="booking-bookable"
+                            :model-value="bookingForm.is_bookable"
+                            @update:model-value="
+                                bookingForm.is_bookable = $event === true
+                            "
+                        />
+                        <Label for="booking-bookable">เปิดให้จองคิว</Label>
+                    </div>
+                    <InputError :message="bookingForm.errors.is_bookable" />
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="grid gap-2">
+                            <Label for="booking-open">เวลาเปิด</Label>
+                            <Input
+                                id="booking-open"
+                                v-model="bookingForm.open_time"
+                                type="time"
+                            />
+                            <InputError :message="bookingForm.errors.open_time" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="booking-close">เวลาปิด</Label>
+                            <Input
+                                id="booking-close"
+                                v-model="bookingForm.close_time"
+                                type="time"
+                            />
+                            <InputError
+                                :message="bookingForm.errors.close_time"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="grid gap-2">
+                            <Label for="booking-length">
+                                ความยาวคิว (นาที)
+                            </Label>
+                            <Input
+                                id="booking-length"
+                                v-model="bookingForm.slot_length_minutes"
+                                type="number"
+                                min="1"
+                                max="480"
+                            />
+                            <InputError
+                                :message="bookingForm.errors.slot_length_minutes"
+                            />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="booking-capacity">
+                                จำนวนที่รับได้ต่อคิว
+                            </Label>
+                            <Input
+                                id="booking-capacity"
+                                v-model="bookingForm.slot_capacity"
+                                type="number"
+                                min="1"
+                                max="100"
+                            />
+                            <InputError
+                                :message="bookingForm.errors.slot_capacity"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="booking-advance">
+                            จองล่วงหน้าได้กี่วัน
+                        </Label>
+                        <Input
+                            id="booking-advance"
+                            v-model="bookingForm.max_advance_days"
+                            type="number"
+                            min="0"
+                            max="365"
+                        />
+                        <InputError
+                            :message="bookingForm.errors.max_advance_days"
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="bookingBranch = null"
+                    >
+                        ยกเลิก
+                    </Button>
+                    <Button type="submit" :disabled="bookingForm.processing">
+                        บันทึก
+                    </Button>
+                </DialogFooter>
+            </form>
         </DialogContent>
     </Dialog>
 </template>

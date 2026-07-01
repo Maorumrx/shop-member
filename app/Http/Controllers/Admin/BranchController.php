@@ -6,8 +6,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreBranchRequest;
+use App\Http\Requests\Admin\UpdateBranchBookingSettingRequest;
 use App\Http\Requests\Admin\UpdateBranchRequest;
 use App\Models\Branch;
+use App\Models\BranchBookingSetting;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -22,12 +24,34 @@ use Inertia\Response;
 class BranchController extends Controller
 {
     /**
-     * Paginated branch list (20/page), alphabetical.
+     * Paginated branch list (20/page), alphabetical. Each row carries its
+     * per-branch booking config (`booking`, null when no settings row exists) so
+     * the Vue side can pre-fill the "ตั้งค่าการจอง" dialog and flag which branches
+     * are currently bookable. Times are trimmed to 'H:i' for the UI (the column
+     * stores 'H:i:s'; the editor re-appends seconds on save).
      */
     public function index(): Response
     {
+        $branches = Branch::query()
+            ->with('bookingSetting')
+            ->orderBy('name')
+            ->paginate(20)
+            ->through(fn (Branch $branch): array => [
+                'id' => $branch->id,
+                'name' => $branch->name,
+                'is_active' => $branch->is_active,
+                'booking' => $branch->bookingSetting === null ? null : [
+                    'is_bookable' => $branch->bookingSetting->is_bookable,
+                    'slot_capacity' => $branch->bookingSetting->slot_capacity,
+                    'slot_length_minutes' => $branch->bookingSetting->slot_length_minutes,
+                    'open_time' => substr($branch->bookingSetting->open_time, 0, 5),
+                    'close_time' => substr($branch->bookingSetting->close_time, 0, 5),
+                    'max_advance_days' => $branch->bookingSetting->max_advance_days,
+                ],
+            ]);
+
         return Inertia::render('Admin/Branches/Index', [
-            'branches' => Branch::orderBy('name')->paginate(20),
+            'branches' => $branches,
         ]);
     }
 
@@ -88,5 +112,27 @@ class BranchController extends Controller
         ]);
 
         return back();
+    }
+
+    /**
+     * Upsert the branch's booking config (Phase 7, docs/phase7-booking-design.md
+     * §3.1). A branch has at most one `branch_booking_settings` row (1:1), so a
+     * single `updateOrCreate` keyed on `branch_id` both creates the first config
+     * and edits an existing one. Owner-only (gated at the route via `role:owner`).
+     *
+     * Times arrive as 'H:i' from the UI and are normalized to the column's
+     * 'H:i:s' TIME shape by the request; edits take effect immediately because
+     * {@see \App\Services\Booking\BookingService} reads this row live (no cache).
+     */
+    public function updateBookingSettings(UpdateBranchBookingSettingRequest $request, Branch $branch): RedirectResponse
+    {
+        BranchBookingSetting::updateOrCreate(
+            ['branch_id' => $branch->id],
+            $request->settingsData(),
+        );
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('บันทึกการตั้งค่าการจองแล้ว')]);
+
+        return to_route('branches.index');
     }
 }

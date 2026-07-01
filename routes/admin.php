@@ -30,6 +30,10 @@ Route::middleware(['auth', 'verified', 'role:owner'])->group(function () {
     Route::put('branches/{branch}', [BranchController::class, 'update'])->name('branches.update');
     Route::delete('branches/{branch}', [BranchController::class, 'destroy'])->name('branches.destroy');
     Route::patch('branches/{branch}/toggle', [BranchController::class, 'toggle'])->name('branches.toggle');
+    // Per-branch booking config (Phase 7) — upsert the branch_booking_settings row
+    // (is_bookable, capacity, slot length, open/close hours, advance window). Owner-only
+    // like the rest of the catalog; the index manages it inline via a modal.
+    Route::put('branches/{branch}/booking-settings', [BranchController::class, 'updateBookingSettings'])->name('branches.booking-settings.update');
 
     // Packages — full resource with nested package_lines, plus an is_active toggle.
     Route::get('packages', [PackageController::class, 'index'])->name('packages.index');

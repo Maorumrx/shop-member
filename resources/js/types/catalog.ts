@@ -28,13 +28,26 @@ export type PaginatorLink = {
     active: boolean;
 };
 
+/**
+ * A branch's per-slot booking config (Phase 7). Times are 'H:i' for the UI (the
+ * column stores 'H:i:s'). `null` on a BranchRow means the branch has no settings
+ * row yet — the editor pre-fills sensible defaults in that case.
+ */
+export type BranchBooking = {
+    is_bookable: boolean;
+    slot_capacity: number;
+    slot_length_minutes: number;
+    open_time: string;
+    close_time: string;
+    max_advance_days: number;
+};
+
 /** A branch row in Admin/Branches/Index. */
 export type BranchRow = {
     id: number;
     name: string;
     is_active: boolean;
-    created_at: string;
-    updated_at: string;
+    booking: BranchBooking | null;
 };
 
 /** A minimal active-branch option used by the package picker/filter. */
