@@ -33,6 +33,136 @@ type Phase = 'loading' | 'error' | 'unconfigured' | 'needs_link';
 const page = usePage();
 const liffId = (page.props.lineLiffId ?? '') as string;
 
+/**
+ * One-shot loop guard for the token-refresh dance (§token-freshness).
+ *
+ * `liff.getIDToken()` hands back whatever is cached — even an EXPIRED id_token —
+ * whenever `isLoggedIn()` is true, and LINE's verify endpoint 400s it (our
+ * endpoint then 422s). The only reliable way to re-mint a fresh token is
+ * `liff.logout()` + `liff.login()`, which fully redirects out to LINE and back.
+ *
+ * That redirect re-runs `authenticate()` from scratch, so an id_token that STILL
+ * looks stale after a refresh (e.g. a fast-skewed device clock) would loop
+ * forever: logout → login → back → stale → logout … To cap it at ONE refresh per
+ * login cycle we mark "refresh already spent" in TWO places:
+ *
+ *  - PRIMARY: a `?login_refreshed=1` query param baked into the login redirectUri.
+ *    This is the real guarantee — it rides the redirect on the URL itself, so it
+ *    survives even when the LINE in-app webview (or Safari private mode) throws on
+ *    or silently wipes `sessionStorage` across navigation.
+ *  - SUPPLEMENT: a best-effort `sessionStorage` sentinel. Nice when it works, but
+ *    every access is throw-safe and FAILS TOWARD "already spent" — never toward
+ *    another refresh — so a hostile storage impl can only ever cost us a refresh,
+ *    it can never grant an extra one.
+ *
+ * Both markers are cleared after a SUCCESSFUL verify POST so a genuine later
+ * expiry can still earn its own single refresh.
+ */
+const REFRESH_SENTINEL_KEY = 'member-login:token-refreshing';
+
+/** Query param that rides the login redirect to mark the one-shot refresh spent. */
+const REFRESH_PARAM = 'login_refreshed';
+
+/** 30s safety buffer so a token about to expire mid-flight is treated as stale
+ *  (kept modest to limit false-stale from a fast-skewed device clock). */
+const TOKEN_EXPIRY_BUFFER_S = 30;
+
+/**
+ * Has this login cycle already spent its one allowed refresh? The URL param is
+ * authoritative (survives a storage wipe); the sessionStorage read is a throw-safe
+ * supplement that, on ANY failure, reports `true` so we never loop into a refresh.
+ */
+function refreshAlreadySpent(): boolean {
+    if (
+        new URLSearchParams(window.location.search).get(REFRESH_PARAM) === '1'
+    ) {
+        return true;
+    }
+
+    try {
+        return !!sessionStorage.getItem(REFRESH_SENTINEL_KEY);
+    } catch {
+        // Storage unreadable (in-app webview / private mode) — fail toward
+        // "spent" so a wiped/throwing store can't unlock a second refresh.
+        return true;
+    }
+}
+
+/** Best-effort sessionStorage flag; the query param is the real guard, so a throw
+ *  here is harmless and swallowed. */
+function markRefreshSpent(): void {
+    try {
+        sessionStorage.setItem(REFRESH_SENTINEL_KEY, '1');
+    } catch {
+        /* query param is the real guard — ignore storage failures */
+    }
+}
+
+/** Drop both refresh markers after a verified login so a later genuine expiry
+ *  can refresh again (and the URL stays clean). */
+function clearRefreshMarkers(): void {
+    try {
+        sessionStorage.removeItem(REFRESH_SENTINEL_KEY);
+    } catch {
+        /* best-effort */
+    }
+
+    const url = new URL(window.location.href);
+
+    if (url.searchParams.has(REFRESH_PARAM)) {
+        url.searchParams.delete(REFRESH_PARAM);
+        window.history.replaceState(window.history.state, '', url.toString());
+    }
+}
+
+/**
+ * True when the cached id_token is missing, un-decodable, or (about to be)
+ * expired — i.e. NOT safe to POST. Reads `exp` (unix seconds) off the decoded
+ * JWT; a throw or anything that isn't a finite number counts as stale. Must never
+ * throw out of the proactive block.
+ */
+function isIdTokenStale(): boolean {
+    let decoded: ReturnType<typeof liff.getDecodedIDToken>;
+
+    try {
+        decoded = liff.getDecodedIDToken();
+    } catch {
+        // Undecodable token — treat as stale rather than letting it escape.
+        return true;
+    }
+
+    if (
+        !decoded ||
+        typeof decoded.exp !== 'number' ||
+        !Number.isFinite(decoded.exp)
+    ) {
+        return true;
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    return decoded.exp <= nowSeconds + TOKEN_EXPIRY_BUFFER_S;
+}
+
+/**
+ * Force LINE to re-mint fresh tokens by logging out then straight back in. Marks
+ * the refresh spent FIRST — both as a `?login_refreshed=1` param baked into the
+ * redirectUri (the storage-independent guarantee) and, best-effort, in
+ * sessionStorage — so the post-redirect `authenticate()` run knows the one refresh
+ * is used up. `redirectUri` stays on THIS `/member` page/origin so it remains
+ * inside the LIFF endpoint domain. `liff.login()` redirects the browser, so
+ * nothing after this returns.
+ */
+function refreshIdToken(): void {
+    markRefreshSpent();
+
+    const redirect = new URL(window.location.href);
+    redirect.searchParams.set(REFRESH_PARAM, '1');
+
+    liff.logout();
+    liff.login({ redirectUri: redirect.toString() });
+}
+
 const phase = ref<Phase>('loading');
 const statusText = ref('กำลังเข้าสู่ระบบผ่าน LINE…');
 const errorMessage = ref('');
@@ -156,6 +286,24 @@ async function authenticate(): Promise<void> {
             return;
         }
 
+        // Proactive freshness check: even with isLoggedIn() === true the cached
+        // id_token can be EXPIRED, and getIDToken() would hand back that stale
+        // token (LINE then 400s it -> our endpoint 422s). If it looks stale,
+        // re-mint fresh tokens via logout+login — but only once per login cycle.
+        // `refreshAlreadySpent()` reads the `?login_refreshed=1` redirect param
+        // FIRST (survives a sessionStorage wipe in the in-app webview), so a
+        // still-stale token after a refresh (fast-skewed clock) can't re-enter an
+        // endless logout→login loop — it falls through to the error screen below.
+        if (isIdTokenStale()) {
+            if (refreshAlreadySpent()) {
+                throw new Error('id-token-stale-after-refresh');
+            }
+
+            refreshIdToken(); // redirects out to LINE; nothing below runs.
+
+            return;
+        }
+
         const idToken = liff.getIDToken();
 
         if (!idToken) {
@@ -167,6 +315,12 @@ async function authenticate(): Promise<void> {
             '/member/line/login',
             { id_token: idToken },
         );
+
+        // Token accepted (verify succeeded) — clear BOTH refresh markers (drops
+        // the URL param via replaceState) so a genuine future expiry can earn its
+        // own one-shot refresh. `needs_link` below is ALSO a verify success, so
+        // clearing here (before that branch) is intentional.
+        clearRefreshMarkers();
 
         // First-time LINE user (verified, but no member owns this account yet):
         // switch to the link-or-create choice screen instead of the dashboard (§1).
@@ -194,6 +348,21 @@ async function authenticate(): Promise<void> {
             errorMessage.value =
                 (e.response.data as { message?: string })?.message ??
                 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อร้าน';
+
+            return;
+        }
+
+        // Reactive belt-and-suspenders: if verify still 422s even though the
+        // token looked fresh AND this cycle hasn't spent its refresh yet, do the
+        // same one-shot logout+login. `refreshAlreadySpent()` gates BOTH the
+        // proactive and reactive paths on the SAME markers, so at most one refresh
+        // happens per login cycle — no proactive+reactive loop.
+        if (
+            axios.isAxiosError(e) &&
+            e.response?.status === 422 &&
+            !refreshAlreadySpent()
+        ) {
+            refreshIdToken(); // redirects out to LINE; nothing below runs.
 
             return;
         }
