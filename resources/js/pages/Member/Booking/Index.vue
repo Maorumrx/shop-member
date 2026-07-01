@@ -255,7 +255,7 @@ function cancel(booking: MemberBookingRow): void {
                     type="button"
                     class="member-tap flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-member-accent)] text-[var(--color-ink)]"
                     aria-label="กลับหน้าหลัก"
-                    @click="router.get('/member')"
+                    @click="router.get('/member/dashboard')"
                 >
                     <ChevronLeft class="size-5" aria-hidden="true" />
                 </button>
@@ -328,9 +328,12 @@ function cancel(booking: MemberBookingRow): void {
                     </fieldset>
 
                     <!-- Step 2 — Date -->
+                    <!-- min-w-0 defeats the <fieldset> default `min-width: min-content`,
+                         which otherwise refuses to shrink and lets the day row overflow
+                         the card instead of scrolling inside it. -->
                     <fieldset
                         v-if="selectedBranchId !== null"
-                        class="flex flex-col gap-2"
+                        class="flex min-w-0 flex-col gap-2"
                     >
                         <legend
                             class="mb-1 flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink-muted)]"
@@ -338,12 +341,14 @@ function cancel(booking: MemberBookingRow): void {
                             <CalendarDays class="size-4" aria-hidden="true" />
                             เลือกวัน
                         </legend>
-                        <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                        <div
+                            class="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1"
+                        >
                             <button
                                 v-for="day in dayOptions"
                                 :key="day.key"
                                 type="button"
-                                class="member-tap flex min-w-16 shrink-0 flex-col items-center gap-0.5 rounded-2xl border px-3 py-2 text-center"
+                                class="member-tap flex w-20 shrink-0 flex-col items-center gap-0.5 rounded-2xl border px-3 py-2 text-center"
                                 :class="
                                     selectedDate === day.key
                                         ? 'border-[var(--color-primary-strong)] bg-[var(--color-member-accent)] text-[var(--color-ink)]'
@@ -353,12 +358,12 @@ function cancel(booking: MemberBookingRow): void {
                                 @click="chooseDate(day.key)"
                             >
                                 <span
-                                    class="text-xs text-[var(--color-ink-muted)]"
+                                    class="whitespace-nowrap text-xs text-[var(--color-ink-muted)]"
                                 >
                                     {{ weekdayLabel(day.iso) }}
                                 </span>
                                 <span
-                                    class="font-heading text-sm font-semibold tabular-nums"
+                                    class="whitespace-nowrap font-heading text-sm font-semibold tabular-nums"
                                 >
                                     {{ dayChipLabel(day.iso) }}
                                 </span>
@@ -490,7 +495,7 @@ function cancel(booking: MemberBookingRow): void {
                                 id="member-booking-note"
                                 v-model="note"
                                 rows="2"
-                                maxlength="500"
+                                maxlength="255"
                                 placeholder="เช่น ขอพนักงานท่านเดิม"
                                 class="w-full rounded-2xl border border-[var(--color-member-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-primary-strong)] focus:ring-2 focus:ring-[var(--color-focus)]"
                             />
