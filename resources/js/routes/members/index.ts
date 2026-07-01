@@ -140,7 +140,7 @@ store.form = storeForm
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:110
+* @see app/Http/Controllers/Admin/MemberController.php:127
 * @route '/members/{member}'
 */
 export const show = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -155,7 +155,7 @@ show.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:110
+* @see app/Http/Controllers/Admin/MemberController.php:127
 * @route '/members/{member}'
 */
 show.url = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -188,7 +188,7 @@ show.url = (args: { member: number | { id: number } } | [member: number | { id: 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:110
+* @see app/Http/Controllers/Admin/MemberController.php:127
 * @route '/members/{member}'
 */
 show.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -198,7 +198,7 @@ show.get = (args: { member: number | { id: number } } | [member: number | { id: 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:110
+* @see app/Http/Controllers/Admin/MemberController.php:127
 * @route '/members/{member}'
 */
 show.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -208,7 +208,7 @@ show.head = (args: { member: number | { id: number } } | [member: number | { id:
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:110
+* @see app/Http/Controllers/Admin/MemberController.php:127
 * @route '/members/{member}'
 */
 const showForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -218,7 +218,7 @@ const showForm = (args: { member: number | { id: number } } | [member: number | 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:110
+* @see app/Http/Controllers/Admin/MemberController.php:127
 * @route '/members/{member}'
 */
 showForm.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -228,7 +228,7 @@ showForm.get = (args: { member: number | { id: number } } | [member: number | { 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:110
+* @see app/Http/Controllers/Admin/MemberController.php:127
 * @route '/members/{member}'
 */
 showForm.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -333,11 +333,102 @@ updateForm.put = (args: { member: number | { id: number } } | [member: number | 
 
 update.form = updateForm
 
+/**
+* @see \App\Http\Controllers\Admin\MemberController::toggle
+* @see app/Http/Controllers/Admin/MemberController.php:103
+* @route '/members/{member}/toggle'
+*/
+export const toggle = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
+    url: toggle.url(args, options),
+    method: 'patch',
+})
+
+toggle.definition = {
+    methods: ["patch"],
+    url: '/members/{member}/toggle',
+} satisfies RouteDefinition<["patch"]>
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::toggle
+* @see app/Http/Controllers/Admin/MemberController.php:103
+* @route '/members/{member}/toggle'
+*/
+toggle.url = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { member: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { member: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            member: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        member: typeof args.member === 'object'
+        ? args.member.id
+        : args.member,
+    }
+
+    return toggle.definition.url
+            .replace('{member}', parsedArgs.member.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::toggle
+* @see app/Http/Controllers/Admin/MemberController.php:103
+* @route '/members/{member}/toggle'
+*/
+toggle.patch = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
+    url: toggle.url(args, options),
+    method: 'patch',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::toggle
+* @see app/Http/Controllers/Admin/MemberController.php:103
+* @route '/members/{member}/toggle'
+*/
+const toggleForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: toggle.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PATCH',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::toggle
+* @see app/Http/Controllers/Admin/MemberController.php:103
+* @route '/members/{member}/toggle'
+*/
+toggleForm.patch = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: toggle.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PATCH',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+toggle.form = toggleForm
+
 const members = {
     index: Object.assign(index, index),
     store: Object.assign(store, store),
     show: Object.assign(show, show),
     update: Object.assign(update, update),
+    toggle: Object.assign(toggle, toggle),
     purchases: Object.assign(purchases, purchases),
     redemptions: Object.assign(redemptions, redemptions),
 }

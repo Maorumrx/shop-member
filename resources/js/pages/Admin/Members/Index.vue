@@ -15,7 +15,6 @@ import Pagination from '@/components/admin/Pagination.vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -26,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import type { Paginator } from '@/types/catalog';
 import type { MemberRow } from '@/types/members';
 
@@ -58,6 +58,15 @@ watch(search, (value) => {
         );
     }, 300);
 });
+
+/** Toggle active without leaving the page. */
+function toggle(member: MemberRow): void {
+    router.patch(
+        `/members/${member.id}/toggle`,
+        {},
+        { preserveScroll: true, preserveState: true },
+    );
+}
 
 /** The create/edit form. `editingId` null = create, set = edit. */
 const dialogOpen = ref(false);
@@ -177,13 +186,27 @@ function submit(): void {
                             </Badge>
                         </td>
                         <td class="px-4 py-3">
-                            <Badge
-                                :variant="
-                                    member.is_active ? 'default' : 'secondary'
-                                "
-                            >
-                                {{ member.is_active ? 'เปิดใช้งาน' : 'ปิด' }}
-                            </Badge>
+                            <div class="flex items-center gap-2">
+                                <Switch
+                                    :model-value="member.is_active"
+                                    :aria-label="
+                                        member.is_active
+                                            ? 'ปิดใช้งาน'
+                                            : 'เปิดใช้งาน'
+                                    "
+                                    @update:model-value="toggle(member)"
+                                />
+                                <span
+                                    class="text-xs"
+                                    :class="
+                                        member.is_active
+                                            ? 'text-foreground'
+                                            : 'text-muted-foreground'
+                                    "
+                                >
+                                    {{ member.is_active ? 'เปิดใช้งาน' : 'ปิด' }}
+                                </span>
+                            </div>
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center justify-end gap-2">
@@ -264,7 +287,7 @@ function submit(): void {
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <Checkbox
+                        <Switch
                             id="member-active"
                             :model-value="form.is_active"
                             @update:model-value="

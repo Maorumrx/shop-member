@@ -96,6 +96,23 @@ class MemberController extends Controller
     }
 
     /**
+     * Flip `is_active` (deactivate/reactivate without hard-delete, §3.3, §5.4).
+     * Kept separate from update so the index can toggle inline with a single
+     * PATCH.
+     */
+    public function toggle(Member $member): RedirectResponse
+    {
+        $member->update(['is_active' => ! $member->is_active]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $member->is_active ? __('เปิดใช้งานสมาชิกแล้ว') : __('ปิดใช้งานสมาชิกแล้ว'),
+        ]);
+
+        return back();
+    }
+
+    /**
      * Member detail: owned lots + their entitlements, an aggregate "remaining by
      * type" balance summary, the active-package list so the page can sell, and the
      * recent redemption/movement history so the operator sees what was deducted.

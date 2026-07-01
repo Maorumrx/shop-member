@@ -8,14 +8,12 @@
  * controller. Create + edit happen in a single Dialog (shared form), keeping the
  * table dense. Flash toasts fire globally — no per-page toast handling here.
  */
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import { Building2, Pencil, Plus, Trash2 } from '@lucide/vue';
 import { ref } from 'vue';
 import Pagination from '@/components/admin/Pagination.vue';
 import InputError from '@/components/InputError.vue';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -26,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import type { BranchRow, Paginator } from '@/types/catalog';
 
 const props = defineProps<{
@@ -37,6 +36,15 @@ defineOptions({
         breadcrumbs: [{ title: 'สาขา', href: '/branches' }],
     },
 });
+
+/** Toggle active without leaving the page. */
+function toggle(branch: BranchRow): void {
+    router.patch(
+        `/branches/${branch.id}/toggle`,
+        {},
+        { preserveScroll: true, preserveState: true },
+    );
+}
 
 /** The create/edit form. `editingId` null = create, set = edit. */
 const dialogOpen = ref(false);
@@ -133,13 +141,27 @@ function confirmDelete(): void {
                     >
                         <td class="px-4 py-3 font-medium">{{ branch.name }}</td>
                         <td class="px-4 py-3">
-                            <Badge
-                                :variant="
-                                    branch.is_active ? 'default' : 'secondary'
-                                "
-                            >
-                                {{ branch.is_active ? 'เปิดใช้งาน' : 'ปิด' }}
-                            </Badge>
+                            <div class="flex items-center gap-2">
+                                <Switch
+                                    :model-value="branch.is_active"
+                                    :aria-label="
+                                        branch.is_active
+                                            ? 'ปิดใช้งาน'
+                                            : 'เปิดใช้งาน'
+                                    "
+                                    @update:model-value="toggle(branch)"
+                                />
+                                <span
+                                    class="text-xs"
+                                    :class="
+                                        branch.is_active
+                                            ? 'text-foreground'
+                                            : 'text-muted-foreground'
+                                    "
+                                >
+                                    {{ branch.is_active ? 'เปิดใช้งาน' : 'ปิด' }}
+                                </span>
+                            </div>
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center justify-end gap-2">
@@ -205,7 +227,7 @@ function confirmDelete(): void {
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <Checkbox
+                        <Switch
                             id="branch-active"
                             :model-value="form.is_active"
                             @update:model-value="

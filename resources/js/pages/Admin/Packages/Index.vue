@@ -13,7 +13,6 @@ import { ref } from 'vue';
 import Pagination from '@/components/admin/Pagination.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -22,6 +21,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { formatBaht } from '@/lib/money';
 import type { Paginator, PackageRow } from '@/types/catalog';
 
@@ -129,20 +129,23 @@ function confirmDelete(): void {
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <Checkbox
+                                <Switch
                                     :model-value="pkg.is_active"
                                     :aria-label="
                                         pkg.is_active ? 'ปิดขาย' : 'เปิดขาย'
                                     "
                                     @update:model-value="toggle(pkg)"
                                 />
-                                <Badge
-                                    :variant="
-                                        pkg.is_active ? 'default' : 'secondary'
+                                <span
+                                    class="text-xs"
+                                    :class="
+                                        pkg.is_active
+                                            ? 'text-foreground'
+                                            : 'text-muted-foreground'
                                     "
                                 >
                                     {{ pkg.is_active ? 'เปิดขาย' : 'ปิด' }}
-                                </Badge>
+                                </span>
                             </div>
                         </td>
                         <td class="px-4 py-3">

@@ -72,4 +72,21 @@ class BranchController extends Controller
 
         return to_route('branches.index');
     }
+
+    /**
+     * Flip `is_active` (soft hide-from-selection without delete, §3.1). Kept
+     * separate from update/destroy so the index can toggle inline with a single
+     * PATCH.
+     */
+    public function toggle(Branch $branch): RedirectResponse
+    {
+        $branch->update(['is_active' => ! $branch->is_active]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $branch->is_active ? __('เปิดใช้งานสาขาแล้ว') : __('ปิดใช้งานสาขาแล้ว'),
+        ]);
+
+        return back();
+    }
 }

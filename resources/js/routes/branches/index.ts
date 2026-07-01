@@ -316,11 +316,102 @@ destroyForm.delete = (args: { branch: number | { id: number } } | [branch: numbe
 
 destroy.form = destroyForm
 
+/**
+* @see \App\Http\Controllers\Admin\BranchController::toggle
+* @see app/Http/Controllers/Admin/BranchController.php:81
+* @route '/branches/{branch}/toggle'
+*/
+export const toggle = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
+    url: toggle.url(args, options),
+    method: 'patch',
+})
+
+toggle.definition = {
+    methods: ["patch"],
+    url: '/branches/{branch}/toggle',
+} satisfies RouteDefinition<["patch"]>
+
+/**
+* @see \App\Http\Controllers\Admin\BranchController::toggle
+* @see app/Http/Controllers/Admin/BranchController.php:81
+* @route '/branches/{branch}/toggle'
+*/
+toggle.url = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { branch: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { branch: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            branch: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        branch: typeof args.branch === 'object'
+        ? args.branch.id
+        : args.branch,
+    }
+
+    return toggle.definition.url
+            .replace('{branch}', parsedArgs.branch.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Admin\BranchController::toggle
+* @see app/Http/Controllers/Admin/BranchController.php:81
+* @route '/branches/{branch}/toggle'
+*/
+toggle.patch = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
+    url: toggle.url(args, options),
+    method: 'patch',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\BranchController::toggle
+* @see app/Http/Controllers/Admin/BranchController.php:81
+* @route '/branches/{branch}/toggle'
+*/
+const toggleForm = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: toggle.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PATCH',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\BranchController::toggle
+* @see app/Http/Controllers/Admin/BranchController.php:81
+* @route '/branches/{branch}/toggle'
+*/
+toggleForm.patch = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: toggle.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PATCH',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+toggle.form = toggleForm
+
 const branches = {
     index: Object.assign(index, index),
     store: Object.assign(store, store),
     update: Object.assign(update, update),
     destroy: Object.assign(destroy, destroy),
+    toggle: Object.assign(toggle, toggle),
 }
 
 export default branches

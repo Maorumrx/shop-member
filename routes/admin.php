@@ -28,6 +28,7 @@ Route::middleware(['auth', 'verified', 'role:owner'])->group(function () {
     Route::post('branches', [BranchController::class, 'store'])->name('branches.store');
     Route::put('branches/{branch}', [BranchController::class, 'update'])->name('branches.update');
     Route::delete('branches/{branch}', [BranchController::class, 'destroy'])->name('branches.destroy');
+    Route::patch('branches/{branch}/toggle', [BranchController::class, 'toggle'])->name('branches.toggle');
 
     // Packages — full resource with nested package_lines, plus an is_active toggle.
     Route::get('packages', [PackageController::class, 'index'])->name('packages.index');
@@ -71,6 +72,7 @@ Route::middleware(['auth', 'verified', 'role:owner,staff'])->group(function () {
     Route::post('members', [MemberController::class, 'store'])->name('members.store');
     Route::get('members/{member}', [MemberController::class, 'show'])->name('members.show');
     Route::put('members/{member}', [MemberController::class, 'update'])->name('members.update');
+    Route::patch('members/{member}/toggle', [MemberController::class, 'toggle'])->name('members.toggle');
 
     // Sell a package to a member (the Phase-4 core). Atomic mint via PurchaseService.
     Route::post('members/{member}/purchases', [PurchaseController::class, 'store'])->name('members.purchases.store');
