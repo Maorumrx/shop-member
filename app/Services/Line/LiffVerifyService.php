@@ -6,6 +6,7 @@ namespace App\Services\Line;
 
 use App\Exceptions\LineAuthException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Server-side verification of a LINE LIFF ID token.
@@ -58,6 +59,12 @@ final class LiffVerifyService
         // check below degrades to `null !== null` and silently accepts tokens
         // minted for ANY channel (a config slip must never become an auth bypass).
         if (! is_string($channelId) || $channelId === '') {
+            // Config slip, not a token problem — no request was even sent to LINE.
+            Log::warning('LINE LIFF verification failed.', [
+                'event' => 'line_liff_verify_failed',
+                'reason' => 'channel_unconfigured',
+            ]);
+
             throw new LineAuthException('LINE login channel is not configured.');
         }
 
@@ -69,6 +76,18 @@ final class LiffVerifyService
         if ($response->failed()) {
             // LINE returns 400 with {error, error_description} for an invalid,
             // expired, or channel-mismatched token. Do not leak the body.
+            //
+            // error/error_description are LINE's own diagnostic strings (e.g.
+            // "IdToken expired.", "invalid channel id") and carry no member PII;
+            // they are the single most useful signal for triaging this failure.
+            Log::warning('LINE LIFF verification failed.', [
+                'event' => 'line_liff_verify_failed',
+                'reason' => 'line_rejected',
+                'status' => $response->status(),
+                'line_error' => $response->json('error'),
+                'line_error_description' => $response->json('error_description'),
+            ]);
+
             throw new LineAuthException(
                 'LINE ID token verification request failed.'
             );
@@ -80,22 +99,52 @@ final class LiffVerifyService
         // Audience must be our login channel — rejects tokens minted for a
         // different LINE channel being replayed against this app.
         if (($payload['aud'] ?? null) !== $channelId) {
+            // aud is a channel id, not member PII — safe to log both sides so a
+            // token-minted-for-another-channel misconfiguration is obvious.
+            Log::warning('LINE LIFF verification failed.', [
+                'event' => 'line_liff_verify_failed',
+                'reason' => 'aud_mismatch',
+                'expected_aud' => $channelId,
+                'actual_aud' => $payload['aud'] ?? null,
+            ]);
+
             throw new LineAuthException('LINE ID token audience mismatch.');
         }
 
         // Issuer must be LINE.
         if (($payload['iss'] ?? null) !== self::EXPECTED_ISSUER) {
+            // iss identifies LINE, not the member — safe to log the actual value.
+            Log::warning('LINE LIFF verification failed.', [
+                'event' => 'line_liff_verify_failed',
+                'reason' => 'iss_mismatch',
+                'actual_iss' => $payload['iss'] ?? null,
+            ]);
+
             throw new LineAuthException('LINE ID token issuer mismatch.');
         }
 
         // `exp` is validated by LINE's endpoint; re-assert its presence as a
         // structural guard against a malformed/short payload slipping through.
         if (! isset($payload['exp'])) {
+            // Structural anomaly — no claim value logged (nothing here is PII-free
+            // AND useful; the reason slug alone identifies the failure).
+            Log::warning('LINE LIFF verification failed.', [
+                'event' => 'line_liff_verify_failed',
+                'reason' => 'missing_exp',
+            ]);
+
             throw new LineAuthException('LINE ID token is missing an expiry.');
         }
 
         // `sub` (the stable LINE user id) is required to identify the member.
         if (! isset($payload['sub']) || ! is_string($payload['sub']) || $payload['sub'] === '') {
+            // NEVER log the sub itself (it is the member's stable LINE id = PII);
+            // the reason slug is enough to flag a malformed payload.
+            Log::warning('LINE LIFF verification failed.', [
+                'event' => 'line_liff_verify_failed',
+                'reason' => 'missing_sub',
+            ]);
+
             throw new LineAuthException('LINE ID token is missing the subject.');
         }
 
