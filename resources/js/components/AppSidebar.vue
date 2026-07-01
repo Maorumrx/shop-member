@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { LayoutGrid, Package, Store, UsersRound } from '@lucide/vue';
+import {
+    CalendarDays,
+    LayoutGrid,
+    Package,
+    Store,
+    UsersRound,
+} from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
@@ -36,6 +42,11 @@ const mainNavItems: NavItem[] = [
         title: 'สมาชิก',
         href: '/members',
         icon: UsersRound,
+    },
+    {
+        title: 'การจอง',
+        href: '/bookings',
+        icon: CalendarDays,
     },
 ];
 </script>

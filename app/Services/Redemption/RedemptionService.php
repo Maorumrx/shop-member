@@ -65,6 +65,13 @@ final class RedemptionService
      * @param  int          $qty       Units to redeem (caller-validated `>= 1`).
      * @param  User         $staff     Acting operator → `entitlement_ledger.staff_id`.
      * @param  int|null     $branchId  Redeeming staff's home branch; null = owner/unscoped.
+     * @param  int|null     $bookingId Phase-7 passthrough: when the redemption is a
+     *                                 booking CHECK-IN, stamp every ledger row this
+     *                                 redemption writes with `booking_id` so the
+     *                                 completed booking links to exactly what it
+     *                                 consumed (docs/phase7-booking-design.md §7).
+     *                                 The counter/admin redeem path passes null
+     *                                 (default) and behaves exactly as before.
      *
      * @return RedemptionResult  The ordered list of decrements (primaries + coupled
      *                           siblings) for the UI to render exactly what was deducted.
@@ -72,9 +79,9 @@ final class RedemptionService
      * @throws RedemptionException  When the redeemable balance is below `$qty`
      *                              (nothing is written — the txn rolls back).
      */
-    public function redeem(Member $member, string $itemCode, int $qty, User $staff, ?int $branchId): RedemptionResult
+    public function redeem(Member $member, string $itemCode, int $qty, User $staff, ?int $branchId, ?int $bookingId = null): RedemptionResult
     {
-        return DB::transaction(function () use ($member, $itemCode, $qty, $staff, $branchId): RedemptionResult {
+        return DB::transaction(function () use ($member, $itemCode, $qty, $staff, $branchId, $bookingId): RedemptionResult {
             // (1) Select + LOCK the member's redeemable lots for this item, FIFO.
             //
             // Filters mirror the §6.3 reference: active, qty_remaining>0, not
@@ -145,6 +152,7 @@ final class RedemptionService
                     member: $member,
                     staff: $staff,
                     wasCoupled: false,
+                    bookingId: $bookingId,
                 );
 
                 $touchedLotIds[$ent->member_package_id] = true;
@@ -171,6 +179,7 @@ final class RedemptionService
                             member: $member,
                             staff: $staff,
                             wasCoupled: true,
+                            bookingId: $bookingId,
                         );
 
                         $touchedLotIds[$sibling->member_package_id] = true;
@@ -200,8 +209,9 @@ final class RedemptionService
      * §5.7) FIRST, then write the ledger row with `balance_after == qty_remaining`
      * AFTER the decrement. The ledger row is the ONLY write allowed against the
      * ledger (the model forbids update/delete, §3.8) — exactly one row per
-     * decrement, with `delta = -$take`, `reason = redeem`, `staff_id`, and a null
-     * `booking_id` (bookings are a later Phase-5 concern; §3.8).
+     * decrement, with `delta = -$take`, `reason = redeem`, `staff_id`, and the
+     * `booking_id` passthrough (null for a counter redeem; set for a booking
+     * check-in, docs/phase7-booking-design.md §7).
      *
      * Pre-condition: `$take >= 1` and `$take <= $entitlement->qty_remaining` — the
      * caller (FIFO walk / coupling) guarantees this via `min(...)`, so the unsigned
@@ -212,6 +222,8 @@ final class RedemptionService
      * @param  Member       $member       Owner — denormalized onto the ledger row.
      * @param  User         $staff        Acting operator → ledger.staff_id.
      * @param  bool         $wasCoupled   True when pulled in as a redeem_group sibling.
+     * @param  int|null     $bookingId    Phase-7 booking check-in id to stamp on the
+     *                                    ledger row; null for a counter/admin redeem.
      */
     private function applyDecrement(
         Entitlement $entitlement,
@@ -219,6 +231,7 @@ final class RedemptionService
         Member $member,
         User $staff,
         bool $wasCoupled,
+        ?int $bookingId = null,
     ): RedemptionMovement {
         // Decrement the cache. We mutate then persist via save() (not an atomic
         // SQL decrement) deliberately: the row is lockForUpdate-held for the whole
@@ -239,7 +252,10 @@ final class RedemptionService
             'delta' => -$take,
             'reason' => LedgerReason::Redeem,
             'balance_after' => $entitlement->qty_remaining,
-            'booking_id' => null,
+            // Phase-7 passthrough: null on a counter/admin redeem (unchanged
+            // behaviour), set to the booking id on a check-in so the completed
+            // booking links to what it consumed (§7).
+            'booking_id' => $bookingId,
             'staff_id' => $staff->id,
             'note' => null,
         ]);

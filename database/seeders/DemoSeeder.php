@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Enums\ItemType;
 use App\Enums\UserRole;
 use App\Models\Branch;
+use App\Models\BranchBookingSetting;
 use App\Models\Member;
 use App\Models\Package;
 use App\Models\User;
@@ -26,8 +27,24 @@ class DemoSeeder extends Seeder
     public function run(): void
     {
         // ── สาขา ─────────────────────────────────────────────────────────────
-        Branch::firstOrCreate(['name' => 'สาขาสยาม'], ['is_active' => true]);
+        $siam = Branch::firstOrCreate(['name' => 'สาขาสยาม'], ['is_active' => true]);
         $thonglor = Branch::firstOrCreate(['name' => 'สาขาทองหล่อ'], ['is_active' => true]);
+
+        // เปิดจองคิว (Phase 7) ทั้ง 2 สาขา demo — capacity 2, ช่องละ 60 นาที, 10:00–20:00,
+        // จองล่วงหน้าได้ 30 วัน. updateOrCreate = idempotent.
+        foreach ([$siam, $thonglor] as $branch) {
+            BranchBookingSetting::updateOrCreate(
+                ['branch_id' => $branch->id],
+                [
+                    'is_bookable' => true,
+                    'slot_capacity' => 2,
+                    'slot_length_minutes' => 60,
+                    'open_time' => '10:00:00',
+                    'close_time' => '20:00:00',
+                    'max_advance_days' => 30,
+                ],
+            );
+        }
 
         // ── แพ็คเกจ (idempotent by name; lines สร้างเฉพาะตอน create ครั้งแรก) ──
         // [item_code, item_name, item_type, qty, redeem_group]

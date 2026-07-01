@@ -16,6 +16,7 @@
  */
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
+    CalendarPlus,
     History,
     Pencil,
     Scissors,
@@ -241,6 +242,27 @@ function sell(): void {
     });
 }
 
+/* ── Book on behalf (shortcut to the admin day board) ───────────────────── */
+/**
+ * The availability endpoint is members-guarded (staff can't reach it), so rather
+ * than duplicate slot-fetching here, we hand off to the Admin day board — which
+ * already receives real `availability` for a branch+day — with this member pinned
+ * via query params. The board shows a "จองคิวให้สมาชิก" panel and POSTs to
+ * `bookings.store` with `member_id`. No new backend endpoint is added.
+ */
+function bookOnBehalf(): void {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+
+    router.get('/bookings', {
+        member_id: props.member.id,
+        member_name: props.member.name,
+        date: `${y}-${m}-${d}`,
+    });
+}
+
 /* ── Redeem (POST /members/{id}/redemptions) ────────────────────────────── */
 /**
  * One-click ตัดสิทธิ์ per balance row, with an optional qty stepper (default 1,
@@ -307,6 +329,7 @@ function describeRedemption(result: RedemptionResult): string {
         .map((m) => {
             const name = m.item_name ?? m.item_code;
             const coupled = m.was_coupled ? ' (คู่)' : '';
+
             return `${name} ${m.taken} (เหลือ ${m.remaining_after})${coupled}`;
         })
         .join(' + ');
@@ -388,10 +411,20 @@ onUnmounted(() => {
                             </div>
                         </div>
                     </div>
-                    <Button variant="outline" size="sm" @click="openEdit">
-                        <Pencil />
-                        แก้ไข
-                    </Button>
+                    <div class="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            @click="bookOnBehalf"
+                        >
+                            <CalendarPlus />
+                            จองคิวให้สมาชิก
+                        </Button>
+                        <Button variant="outline" size="sm" @click="openEdit">
+                            <Pencil />
+                            แก้ไข
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
         </Card>

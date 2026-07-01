@@ -21,6 +21,11 @@ const thaiDateTimeFormatter = new Intl.DateTimeFormat('th-TH-u-ca-buddhist', {
     minute: '2-digit',
 });
 
+const thaiTimeFormatter = new Intl.DateTimeFormat('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
 /**
  * Short Thai Buddhist-era date, e.g. "3 ก.ค. 2569". `null`/unparseable → '—'.
  */
@@ -54,6 +59,46 @@ export function formatThaiDateTime(iso: string | null): string {
     }
 
     return thaiDateTimeFormatter.format(date);
+}
+
+/**
+ * Time-of-day only, e.g. "14:05" — for a booking slot / scheduled time where the
+ * date is shown separately. `null`/unparseable → '—'.
+ */
+export function formatThaiTime(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    const date = new Date(iso);
+
+    if (Number.isNaN(date.getTime())) {
+        return '—';
+    }
+
+    return thaiTimeFormatter.format(date);
+}
+
+/**
+ * A slot's time range, e.g. "14:00 – 14:30". Either end `null`/unparseable
+ * collapses to the single available side (or '—' if both are missing).
+ */
+export function formatThaiTimeRange(
+    startIso: string | null,
+    endIso: string | null,
+): string {
+    const start = formatThaiTime(startIso);
+    const end = formatThaiTime(endIso);
+
+    if (start === '—') {
+        return end;
+    }
+
+    if (end === '—') {
+        return start;
+    }
+
+    return `${start} – ${end}`;
 }
 
 /**

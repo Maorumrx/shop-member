@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\BookingController;
 use App\Http\Controllers\Admin\BranchController;
 use App\Http\Controllers\Admin\MemberController;
 use App\Http\Controllers\Admin\PackageController;
@@ -82,4 +83,19 @@ Route::middleware(['auth', 'verified', 'role:owner,staff'])->group(function () {
     // ledger row per touched entitlement, coupled redeem_group siblings, lot rollup.
     // Branch context = the acting staff's home branch (owner = null = unscoped, §5.5).
     Route::post('members/{member}/redemptions', [RedemptionController::class, 'store'])->name('members.redemptions.store');
+
+    // Bookings (จองคิว, Phase 7 — counter/day-view). Owner sees any branch; staff
+    // are pinned to their home branch (§5.5). Check-in runs redemption via the
+    // existing RedemptionService (stamping booking_id) and completes the booking;
+    // insufficient balance rolls back and asks staff to sell a package first (§7).
+    //   - index    day view: bookings for a branch + date + the slot availability.
+    //   - store    staff books on behalf of a member (created_via=staff).
+    //   - checkIn  redeem + complete (POST).
+    //   - noShow   confirmed → no_show (POST).
+    //   - cancel   confirmed → cancelled (DELETE).
+    Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');
+    Route::post('bookings', [BookingController::class, 'store'])->name('bookings.store');
+    Route::post('bookings/{booking}/check-in', [BookingController::class, 'checkIn'])->name('bookings.check-in');
+    Route::post('bookings/{booking}/no-show', [BookingController::class, 'noShow'])->name('bookings.no-show');
+    Route::delete('bookings/{booking}', [BookingController::class, 'cancel'])->name('bookings.cancel');
 });

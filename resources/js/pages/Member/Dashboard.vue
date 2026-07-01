@@ -16,6 +16,7 @@
  * prefers-reduced-motion (matching MemberLayout).
  */
 import { Head, router } from '@inertiajs/vue3';
+import { CalendarPlus } from '@lucide/vue';
 import MemberAvatar from '@/components/member/MemberAvatar.vue';
 import MemberBalanceCard from '@/components/member/MemberBalanceCard.vue';
 import MemberHistoryList from '@/components/member/MemberHistoryList.vue';
@@ -37,6 +38,11 @@ defineProps<{
 
 function logout(): void {
     router.post('/member/logout');
+}
+
+/** Low-emphasis entry point into the Phase 7 booking (จองคิว) surface. */
+function goToBooking(): void {
+    router.get('/member/bookings');
 }
 </script>
 
@@ -94,7 +100,10 @@ function logout(): void {
             </section>
 
             <!-- History -->
-            <section class="flex flex-col gap-3" aria-labelledby="member-history-title">
+            <section
+                class="flex flex-col gap-3"
+                aria-labelledby="member-history-title"
+            >
                 <h2
                     id="member-history-title"
                     class="member-in font-heading text-sm font-semibold text-[var(--color-ink-muted)]"
@@ -107,8 +116,20 @@ function logout(): void {
                 </div>
             </section>
 
+            <!-- Booking entry point (low-emphasis, soft accent) -->
+            <div class="member-in mt-2" style="--delay: 345ms">
+                <button
+                    type="button"
+                    class="member-cta flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--color-member-accent)] px-6 py-3 text-sm font-medium text-[var(--color-ink)]"
+                    @click="goToBooking"
+                >
+                    <CalendarPlus class="size-4" aria-hidden="true" />
+                    จองคิว
+                </button>
+            </div>
+
             <!-- Demoted logout (low-emphasis, soft accent) -->
-            <div class="member-in mt-2" style="--delay: 350ms">
+            <div class="member-in" style="--delay: 350ms">
                 <button
                     type="button"
                     class="member-cta w-full rounded-2xl bg-[var(--color-member-accent)] px-6 py-3 text-sm font-medium text-[var(--color-ink)]"

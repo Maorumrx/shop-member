@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Branch (architecture.md §3.1) — physical shop and the scoping unit for
@@ -92,5 +93,28 @@ class Branch extends Model
     public function members(): HasMany
     {
         return $this->hasMany(Member::class, 'default_branch_id');
+    }
+
+    /**
+     * Per-branch booking config (1:1). Absent (null) for a branch that never
+     * takes bookings; `is_bookable=false` also disables an existing config
+     * (Phase 7, docs/phase7-booking-design.md §3.1).
+     *
+     * @return HasOne<BranchBookingSetting, $this>
+     */
+    public function bookingSetting(): HasOne
+    {
+        return $this->hasOne(BranchBookingSetting::class);
+    }
+
+    /**
+     * Bookings hosted at this branch (Phase 7). RESTRICT on delete — a branch
+     * with bookings on the calendar isn't silently deletable (§3.2).
+     *
+     * @return HasMany<Booking, $this>
+     */
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class);
     }
 }
