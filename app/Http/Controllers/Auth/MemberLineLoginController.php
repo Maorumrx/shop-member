@@ -11,6 +11,7 @@ use App\Http\Requests\Member\SubmitLinkCodeRequest;
 use App\Models\Member;
 use App\Services\Line\LiffVerifyService;
 use App\Services\Line\MemberLinkService;
+use App\Services\Line\MemberNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -158,7 +159,7 @@ final class MemberLineLoginController extends Controller
      * points at. On success: log the member in, regenerate the session (which also
      * drops `pending_line`), `{ ok: true }`.
      */
-    public function submitCode(SubmitLinkCodeRequest $request, MemberLinkService $links): JsonResponse
+    public function submitCode(SubmitLinkCodeRequest $request, MemberLinkService $links, MemberNotifier $notifier): JsonResponse
     {
         $pending = $this->pendingLine($request);
 
@@ -195,6 +196,10 @@ final class MemberLineLoginController extends Controller
         // `pending_line` key with the old session.
         $request->session()->regenerate();
 
+        // Best-effort LINE confirmation that the link succeeded — queued, never
+        // blocks or fails the login (no-op if the member somehow lacks a line id).
+        $notifier->linked($member);
+
         return response()->json(['ok' => true]);
     }
 
@@ -206,7 +211,7 @@ final class MemberLineLoginController extends Controller
      * PUBLIC + throttled — requires the `pending_line` session (else a clean 422).
      * Creates the member from the verified LINE snapshot, logs in, regenerates.
      */
-    public function createNew(Request $request): JsonResponse
+    public function createNew(Request $request, MemberNotifier $notifier): JsonResponse
     {
         $pending = $this->pendingLine($request);
 
@@ -233,6 +238,10 @@ final class MemberLineLoginController extends Controller
 
         // Regenerate re-keys the session and drops the spent `pending_line`.
         $request->session()->regenerate();
+
+        // Best-effort welcome push — queued, never blocks or fails account
+        // creation. A freshly LINE-linked walk-in always has a line_user_id.
+        $notifier->welcome($member);
 
         return response()->json(['ok' => true]);
     }

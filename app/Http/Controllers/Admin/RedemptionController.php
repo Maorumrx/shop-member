@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\EntitlementStatus;
 use App\Exceptions\RedemptionException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreRedemptionRequest;
+use App\Models\Entitlement;
 use App\Models\Member;
+use App\Services\Line\MemberNotifier;
+use App\Services\Redemption\RedemptionResult;
 use App\Services\Redemption\RedemptionService;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -37,7 +41,7 @@ class RedemptionController extends Controller
      * transaction rolled back). On success the per-line breakdown is flashed so
      * the Show page can render exactly what was taken.
      */
-    public function store(StoreRedemptionRequest $request, Member $member, RedemptionService $redemptions): RedirectResponse
+    public function store(StoreRedemptionRequest $request, Member $member, RedemptionService $redemptions, MemberNotifier $notifier): RedirectResponse
     {
         $staff = $request->user();
 
@@ -60,6 +64,17 @@ class RedemptionController extends Controller
             return back();
         }
 
+        // Best-effort LINE receipt for the DIRECTLY-requested item (coupled add-ons
+        // are intentionally NOT announced — keep it simple). Total taken comes from
+        // the result; remaining is re-read after the committed decrement. Queued,
+        // never blocks/fails the redemption (no-op if the member isn't LINE-linked).
+        $notifier->redemptionReceipt(
+            $member,
+            $this->requestedItemName($result),
+            $result->totalTakenForRequestedItem(),
+            $this->remainingForItem($member, $result->itemCode),
+        );
+
         // Stash the precise breakdown so the Show page can render exactly what was
         // deducted (e.g. "ตัดนวด 1 (จากล็อตหมด X) เหลือ Y; ประคบ 1"), beyond the toast.
         Inertia::flash('redemption', $result->toArray());
@@ -67,5 +82,37 @@ class RedemptionController extends Controller
 
         // Back to the member detail so the operator sees the updated balance/history.
         return to_route('members.show', $member);
+    }
+
+    /**
+     * The human label of the directly-requested item, taken from the first
+     * movement whose code matches the requested item (its snapshot `item_name`).
+     * Falls back to the item code when the result has no matching movement
+     * (defensive — a well-formed redemption always has one).
+     */
+    private function requestedItemName(RedemptionResult $result): string
+    {
+        foreach ($result->movements as $movement) {
+            if ($movement->itemCode === $result->itemCode) {
+                return $movement->itemName;
+            }
+        }
+
+        return $result->itemCode;
+    }
+
+    /**
+     * The member's remaining redeemable units for `$itemCode` — the sum of
+     * `qty_remaining` across their still-active entitlements for that item, read
+     * AFTER the redemption committed. Feeds the LINE receipt's "คงเหลือ" figure; a
+     * display value only (used_up/expired rows excluded by the active filter).
+     */
+    private function remainingForItem(Member $member, string $itemCode): int
+    {
+        return (int) Entitlement::query()
+            ->where('member_id', $member->id)
+            ->where('item_code', $itemCode)
+            ->where('status', EntitlementStatus::Active)
+            ->sum('qty_remaining');
     }
 }

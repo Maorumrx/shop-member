@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $branch_id
  * @property \Illuminate\Support\Carbon $purchased_at
  * @property \Illuminate\Support\Carbon|null $expires_at
+ * @property \Illuminate\Support\Carbon|null $expiry_reminded_at
  * @property string $price_paid       decimal(10,2) — kept as string for exactness (§5.6)
  * @property EntitlementStatus $status
  */
@@ -37,6 +38,7 @@ class MemberPackage extends Model
         'branch_id',
         'purchased_at',
         'expires_at',
+        'expiry_reminded_at',
         'price_paid',
         'status',
     ];
@@ -52,6 +54,7 @@ class MemberPackage extends Model
             'branch_id' => 'integer',
             'purchased_at' => 'datetime',
             'expires_at' => 'datetime',
+            'expiry_reminded_at' => 'datetime',
             'price_paid' => 'decimal:2',
             'status' => EntitlementStatus::class,
         ];

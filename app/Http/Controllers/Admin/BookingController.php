@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\BookingOrigin;
+use App\Enums\EntitlementStatus;
 use App\Exceptions\RedemptionException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreBookingRequest;
 use App\Models\Booking;
 use App\Models\Branch;
+use App\Models\Entitlement;
 use App\Models\Member;
 use App\Models\User;
 use App\Services\Booking\BookingException;
 use App\Services\Booking\BookingService;
+use App\Services\Line\MemberNotifier;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -84,7 +87,7 @@ class BookingController extends Controller
      * branch (owner = any) and rejected inactive members. A BookingException is
      * surfaced as a clean Thai error toast — nothing was written.
      */
-    public function store(StoreBookingRequest $request, BookingService $bookings): RedirectResponse
+    public function store(StoreBookingRequest $request, BookingService $bookings, MemberNotifier $notifier): RedirectResponse
     {
         $staff = $request->user();
 
@@ -92,7 +95,7 @@ class BookingController extends Controller
         $member = Member::query()->findOrFail($request->validated('member_id'));
 
         try {
-            $bookings->create(
+            $booking = $bookings->create(
                 branchId: (int) $request->validated('branch_id'),
                 member: $member,
                 itemCode: (string) $request->validated('item_code'),
@@ -107,6 +110,10 @@ class BookingController extends Controller
             return back();
         }
 
+        // Best-effort LINE confirmation to the member AFTER the booking committed —
+        // queued, never blocks/fails the staff action (no-op if not LINE-linked).
+        $notifier->bookingConfirmed($booking);
+
         Inertia::flash('toast', ['type' => 'success', 'message' => __('จองคิวให้สมาชิกแล้ว')]);
 
         return back();
@@ -120,7 +127,7 @@ class BookingController extends Controller
      *
      * Branch guard: staff may only check in bookings at their OWN branch.
      */
-    public function checkIn(Request $request, Booking $booking, BookingService $bookings): RedirectResponse
+    public function checkIn(Request $request, Booking $booking, BookingService $bookings, MemberNotifier $notifier): RedirectResponse
     {
         $staff = $request->user();
 
@@ -137,6 +144,20 @@ class BookingController extends Controller
             Inertia::flash('toast', ['type' => 'error', 'message' => __('เช็คอินไม่ได้: สถานะคิวไม่ถูกต้อง')]);
 
             return back();
+        }
+
+        // Best-effort redemption receipt for THIS booking's service (one slot = one
+        // unit, v1) AFTER the check-in committed. `remainingForItem` re-reads the
+        // member's now-decremented balance for the booked item. Queued, never
+        // blocks/fails the check-in (no-op if the member isn't LINE-linked).
+        $member = $booking->member;
+        if ($member !== null) {
+            $notifier->redemptionReceipt(
+                $member,
+                $booking->item_name,
+                1,
+                $this->remainingForItem($member, $booking->item_code),
+            );
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('เช็คอินและตัดสิทธิ์แล้ว')]);
@@ -302,5 +323,21 @@ class BookingController extends Controller
         if ($user !== null && $user->isStaff() && $user->branch_id !== null) {
             abort_unless($booking->branch_id === $user->branch_id, 403);
         }
+    }
+
+    /**
+     * The member's remaining redeemable units for `$itemCode` — the sum of
+     * `qty_remaining` across their still-active entitlements for that item, read
+     * AFTER a check-in redemption committed. Feeds the LINE receipt's "คงเหลือ"
+     * figure. A best-effort display value only (not a redemption gate); used_up /
+     * expired rows are excluded by the active filter.
+     */
+    private function remainingForItem(Member $member, string $itemCode): int
+    {
+        return (int) Entitlement::query()
+            ->where('member_id', $member->id)
+            ->where('item_code', $itemCode)
+            ->where('status', EntitlementStatus::Active)
+            ->sum('qty_remaining');
     }
 }

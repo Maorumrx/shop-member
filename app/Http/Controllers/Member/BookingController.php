@@ -13,6 +13,7 @@ use App\Models\Branch;
 use App\Models\Member;
 use App\Services\Booking\BookingException;
 use App\Services\Booking\BookingService;
+use App\Services\Line\MemberNotifier;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -91,13 +92,13 @@ class BookingController extends Controller
      * off-grid / duplicate) is surfaced as a clean Thai error toast — nothing was
      * written (the whole transaction rolled back).
      */
-    public function store(StoreBookingRequest $request, BookingService $bookings): RedirectResponse
+    public function store(StoreBookingRequest $request, BookingService $bookings, MemberNotifier $notifier): RedirectResponse
     {
         /** @var Member $member */
         $member = $request->user('members');
 
         try {
-            $bookings->create(
+            $booking = $bookings->create(
                 branchId: (int) $request->validated('branch_id'),
                 member: $member,
                 itemCode: (string) $request->validated('item_code'),
@@ -111,6 +112,10 @@ class BookingController extends Controller
 
             return back();
         }
+
+        // Best-effort LINE confirmation AFTER the booking committed — queued, never
+        // blocks or fails the booking (no-op if the member isn't LINE-linked).
+        $notifier->bookingConfirmed($booking);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('จองคิวแล้ว')]);
 

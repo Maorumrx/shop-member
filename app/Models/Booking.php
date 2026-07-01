@@ -46,6 +46,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Illuminate\Support\Carbon|null $cancelled_at
  * @property int|null $cancelled_by_user_id
  * @property string|null $note
+ * @property \Illuminate\Support\Carbon|null $reminded_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
@@ -74,6 +75,7 @@ class Booking extends Model
         'cancelled_at',
         'cancelled_by_user_id',
         'note',
+        'reminded_at',
     ];
 
     /**
@@ -95,6 +97,7 @@ class Booking extends Model
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'cancelled_by_user_id' => 'integer',
+            'reminded_at' => 'datetime',
             'deleted_at' => 'datetime',
         ];
     }
