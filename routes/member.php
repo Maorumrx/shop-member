@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Auth\MemberLineLoginController;
+use App\Http\Controllers\Dev\MemberDevLoginController;
 use App\Http\Controllers\Member\BookingController;
 use App\Http\Controllers\Member\DashboardController;
 use Illuminate\Support\Facades\Route;
@@ -52,3 +53,12 @@ Route::middleware('auth:members')->group(function () {
     Route::post('member/bookings', [BookingController::class, 'store'])->name('member.bookings.store');
     Route::delete('member/bookings/{booking}', [BookingController::class, 'cancel'])->name('member.bookings.cancel');
 });
+
+// ── DEV ONLY: passwordless member login for browser testing without LINE ──────
+// Registered ONLY in the local environment, so it can NEVER exist in staging/prod
+// (the controller re-guards with abort_unless(local) as defence-in-depth). Visit
+// GET /member/dev-login to pick a member, then browse the member UI as them.
+if (app()->environment('local')) {
+    Route::get('member/dev-login', [MemberDevLoginController::class, 'index'])->name('member.dev-login.index');
+    Route::get('member/dev-login/{member}', [MemberDevLoginController::class, 'login'])->name('member.dev-login');
+}
