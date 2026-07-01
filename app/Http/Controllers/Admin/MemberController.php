@@ -4,15 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
-use App\Enums\EntitlementStatus;
-use App\Enums\LedgerReason;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreMemberRequest;
 use App\Http\Requests\Admin\UpdateMemberRequest;
-use App\Models\Entitlement;
-use App\Models\EntitlementLedger;
 use App\Models\Member;
 use App\Models\Package;
+use App\Services\Member\MemberEntitlementQuery;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -123,8 +120,13 @@ class MemberController extends Controller
      * collection) per the §6.4 aggregate guidance. The history feed eager-loads
      * `staff` + `entitlement:id,item_name` so each row renders without a query per
      * row (§6.4).
+     *
+     * The balance + history projections come from the shared
+     * {@see MemberEntitlementQuery} (the SINGLE source of truth also used by the
+     * member dashboard, Phase 6). Admin passes `includeStaff: true` so the history
+     * keeps its `staff_name` column.
      */
-    public function show(Member $member): Response
+    public function show(Member $member, MemberEntitlementQuery $entitlements): Response
     {
         // Lots newest-first, each with its entitlements (the snapshots + caches).
         $member->load([
@@ -134,7 +136,7 @@ class MemberController extends Controller
 
         return Inertia::render('Admin/Members/Show', [
             'member' => $member,
-            'balanceByType' => $this->remainingByType($member->id),
+            'balanceByType' => $entitlements->remainingByType($member->id),
             // Active packages the Show page can sell (id, name, price). Price is
             // the decimal:2 string default for the price_paid field on the form.
             'activePackages' => Package::query()
@@ -142,78 +144,8 @@ class MemberController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'price']),
             // Recent consumption history (redeem/expire/refund), newest first.
-            'history' => $this->redemptionHistory($member->id),
+            // Admin sees WHO performed each movement (staff_name).
+            'history' => $entitlements->recentHistory($member->id, includeStaff: true),
         ]);
-    }
-
-    /**
-     * Recent entitlement movements for the member's activity feed (§6.4, I6
-     * `(member_id, created_at)`): consumption-relevant reasons (redeem, expire,
-     * refund), newest first, capped at 50. Eager-loads `staff` (who performed it)
-     * and `entitlement:id,item_name` (the label) so the list renders with NO query
-     * per row. The Phase-5 frontend renders this as the redemption history panel.
-     *
-     * @return list<array{
-     *     id: int,
-     *     created_at: string|null,
-     *     item_name: string|null,
-     *     reason: string,
-     *     delta: int,
-     *     balance_after: int,
-     *     staff_name: string|null
-     * }>
-     */
-    private function redemptionHistory(int $memberId): array
-    {
-        return EntitlementLedger::query()
-            ->where('member_id', $memberId)
-            ->whereIn('reason', [LedgerReason::Redeem, LedgerReason::Expire, LedgerReason::Refund])
-            // N+1 guard: load the staff name + the entitlement label in two extra
-            // queries total (not one per row), selecting only the columns rendered.
-            ->with(['staff:id,name', 'entitlement:id,item_name'])
-            ->orderByDesc('id')
-            ->limit(50)
-            ->get(['id', 'entitlement_id', 'member_id', 'delta', 'reason', 'balance_after', 'staff_id', 'created_at'])
-            ->map(fn (EntitlementLedger $row): array => [
-                'id' => $row->id,
-                'created_at' => $row->created_at?->toIso8601String(),
-                'item_name' => $row->entitlement?->item_name,
-                'reason' => $row->reason->value,
-                'delta' => (int) $row->delta,
-                'balance_after' => (int) $row->balance_after,
-                'staff_name' => $row->staff?->name,
-            ])
-            ->all();
-    }
-
-    /**
-     * Aggregate live balance grouped by item (architecture.md §6.4 aggregate): a
-     * single grouped SUM over ACTIVE, non-expired entitlements. `expires_at IS
-     * NULL` (never-expires) counts; dated-but-not-yet-expired counts. Returned as
-     * one row per distinct `item_code`/`item_name` so the Show page can render a
-     * compact "remaining by type" summary.
-     *
-     * @return array<int, array{item_code: string, item_name: string, remaining: int}>
-     */
-    private function remainingByType(int $memberId): array
-    {
-        return Entitlement::query()
-            ->where('member_id', $memberId)
-            ->where('status', EntitlementStatus::Active)
-            // Never-expiring (null) OR still in the future — leans on index I2.
-            ->where(function ($w): void {
-                $w->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
-            ->groupBy('item_code', 'item_name')
-            ->orderBy('item_name')
-            ->selectRaw('item_code, item_name, SUM(qty_remaining) AS remaining')
-            ->get()
-            ->map(fn ($row): array => [
-                'item_code' => (string) $row->item_code,
-                'item_name' => (string) $row->item_name,
-                'remaining' => (int) $row->remaining,
-            ])
-            ->all();
     }
 }

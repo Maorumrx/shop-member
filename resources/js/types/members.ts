@@ -91,6 +91,59 @@ export type HistoryRow = {
     staff_name: string | null;
 };
 
+/* ── Phase 6 — Member-facing dashboard (Member/Dashboard) ────────────────── */
+
+/**
+ * Item classification shared with App\Enums\ItemType. `service` = a main
+ * redeemable item; `addon` = an extra (rendered with a "เสริม" badge).
+ */
+export type ItemType = 'service' | 'addon';
+
+/** The authenticated member's greeting profile (Dashboard prop `member`). */
+export type MemberProfile = {
+    name: string;
+    avatar_url: string | null;
+};
+
+/**
+ * One item line inside an active lot on the dashboard. `qty_remaining` can be 0
+ * (the member sees the full package); `item_type` drives the add-on badge.
+ */
+export type MemberLotItem = {
+    item_name: string;
+    item_type: ItemType;
+    qty_remaining: number;
+    qty_total: number;
+};
+
+/**
+ * One ACTIVE lot on the member dashboard (Dashboard prop `lots`, near-expiry
+ * first). `package_name` is null after catalog cleanup (SET NULL, §5.1);
+ * `expires_at` null = never expires. `is_near_expiry` is server-computed.
+ */
+export type MemberLot = {
+    id: number;
+    package_name: string | null;
+    purchased_at: string | null;
+    expires_at: string | null;
+    is_near_expiry: boolean;
+    items: MemberLotItem[];
+};
+
+/**
+ * One row of the member-facing history feed (Dashboard prop `history`). Same
+ * shape as the admin HistoryRow MINUS `staff_name` — the member view never
+ * receives who performed the movement.
+ */
+export type MemberHistoryRow = {
+    id: number;
+    created_at: string | null;
+    item_name: string | null;
+    reason: HistoryReason;
+    delta: number;
+    balance_after: number;
+};
+
 /**
  * One line of the detailed redemption result, flashed under `redemption` after a
  * successful ตัดสิทธิ์. `was_coupled` marks an add-on pulled by a redeem group

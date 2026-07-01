@@ -14,9 +14,19 @@ withDefaults(
     defineProps<{
         /** Optional heading shown above the card (e.g. shop name). */
         title?: string;
+        /**
+         * Shell layout mode:
+         * - `card` (default): centered `max-w-sm`, vertically centered, content
+         *   wrapped in a single soft card. Used by Login — unchanged.
+         * - `feed`: a wider (`max-w-md`), top-aligned column rendered DIRECTLY on
+         *   the warm canvas (no wrapping card). The page supplies its own stack of
+         *   cards (the dashboard). Adds bottom breathing room.
+         */
+        variant?: 'card' | 'feed';
     }>(),
     {
         title: '',
+        variant: 'card',
     },
 );
 
@@ -35,9 +45,17 @@ onUnmounted(() => {
 
 <template>
     <div
-        class="flex min-h-svh flex-col items-center justify-center gap-6 bg-[var(--color-bg)] p-6 text-[var(--color-ink)] md:p-10"
+        class="flex min-h-svh flex-col items-center gap-6 bg-[var(--color-bg)] p-6 text-[var(--color-ink)] md:p-10"
+        :class="
+            variant === 'feed'
+                ? 'justify-start pb-10'
+                : 'justify-center'
+        "
     >
-        <main class="w-full max-w-sm">
+        <main
+            class="w-full"
+            :class="variant === 'feed' ? 'max-w-md' : 'max-w-sm'"
+        >
             <header v-if="title" class="mb-6 text-center">
                 <h1
                     class="font-heading text-xl font-semibold text-[var(--color-ink)]"
@@ -46,7 +64,12 @@ onUnmounted(() => {
                 </h1>
             </header>
 
+            <!-- Feed: render the page's own card stack directly on the canvas. -->
+            <slot v-if="variant === 'feed'" />
+
+            <!-- Card (default, e.g. Login): wrap the slot in one soft card. -->
             <div
+                v-else
                 class="member-card rounded-2xl bg-[var(--color-surface)] p-8"
                 :style="{ boxShadow: 'var(--shadow-card)' }"
             >

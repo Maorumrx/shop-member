@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Admin\MemberController::index
-* @see app/Http/Controllers/Admin/MemberController.php:39
+* @see app/Http/Controllers/Admin/MemberController.php:36
 * @route '/members'
 */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::index
-* @see app/Http/Controllers/Admin/MemberController.php:39
+* @see app/Http/Controllers/Admin/MemberController.php:36
 * @route '/members'
 */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::index
-* @see app/Http/Controllers/Admin/MemberController.php:39
+* @see app/Http/Controllers/Admin/MemberController.php:36
 * @route '/members'
 */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -35,7 +35,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::index
-* @see app/Http/Controllers/Admin/MemberController.php:39
+* @see app/Http/Controllers/Admin/MemberController.php:36
 * @route '/members'
 */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -45,7 +45,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::index
-* @see app/Http/Controllers/Admin/MemberController.php:39
+* @see app/Http/Controllers/Admin/MemberController.php:36
 * @route '/members'
 */
 const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -55,7 +55,7 @@ const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => (
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::index
-* @see app/Http/Controllers/Admin/MemberController.php:39
+* @see app/Http/Controllers/Admin/MemberController.php:36
 * @route '/members'
 */
 indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -65,7 +65,7 @@ indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::index
-* @see app/Http/Controllers/Admin/MemberController.php:39
+* @see app/Http/Controllers/Admin/MemberController.php:36
 * @route '/members'
 */
 indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -82,7 +82,7 @@ index.form = indexForm
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::store
-* @see app/Http/Controllers/Admin/MemberController.php:76
+* @see app/Http/Controllers/Admin/MemberController.php:73
 * @route '/members'
 */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -97,7 +97,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::store
-* @see app/Http/Controllers/Admin/MemberController.php:76
+* @see app/Http/Controllers/Admin/MemberController.php:73
 * @route '/members'
 */
 store.url = (options?: RouteQueryOptions) => {
@@ -106,7 +106,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::store
-* @see app/Http/Controllers/Admin/MemberController.php:76
+* @see app/Http/Controllers/Admin/MemberController.php:73
 * @route '/members'
 */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -116,7 +116,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::store
-* @see app/Http/Controllers/Admin/MemberController.php:76
+* @see app/Http/Controllers/Admin/MemberController.php:73
 * @route '/members'
 */
 const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -126,7 +126,7 @@ const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::store
-* @see app/Http/Controllers/Admin/MemberController.php:76
+* @see app/Http/Controllers/Admin/MemberController.php:73
 * @route '/members'
 */
 storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -138,7 +138,7 @@ store.form = storeForm
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:127
+* @see app/Http/Controllers/Admin/MemberController.php:129
 * @route '/members/{member}'
 */
 export const show = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -153,7 +153,7 @@ show.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:127
+* @see app/Http/Controllers/Admin/MemberController.php:129
 * @route '/members/{member}'
 */
 show.url = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -186,7 +186,7 @@ show.url = (args: { member: number | { id: number } } | [member: number | { id: 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:127
+* @see app/Http/Controllers/Admin/MemberController.php:129
 * @route '/members/{member}'
 */
 show.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -196,7 +196,7 @@ show.get = (args: { member: number | { id: number } } | [member: number | { id: 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:127
+* @see app/Http/Controllers/Admin/MemberController.php:129
 * @route '/members/{member}'
 */
 show.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -206,7 +206,7 @@ show.head = (args: { member: number | { id: number } } | [member: number | { id:
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:127
+* @see app/Http/Controllers/Admin/MemberController.php:129
 * @route '/members/{member}'
 */
 const showForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -216,7 +216,7 @@ const showForm = (args: { member: number | { id: number } } | [member: number | 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:127
+* @see app/Http/Controllers/Admin/MemberController.php:129
 * @route '/members/{member}'
 */
 showForm.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -226,7 +226,7 @@ showForm.get = (args: { member: number | { id: number } } | [member: number | { 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
-* @see app/Http/Controllers/Admin/MemberController.php:127
+* @see app/Http/Controllers/Admin/MemberController.php:129
 * @route '/members/{member}'
 */
 showForm.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -243,7 +243,7 @@ show.form = showForm
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::update
-* @see app/Http/Controllers/Admin/MemberController.php:89
+* @see app/Http/Controllers/Admin/MemberController.php:86
 * @route '/members/{member}'
 */
 export const update = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -258,7 +258,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::update
-* @see app/Http/Controllers/Admin/MemberController.php:89
+* @see app/Http/Controllers/Admin/MemberController.php:86
 * @route '/members/{member}'
 */
 update.url = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -291,7 +291,7 @@ update.url = (args: { member: number | { id: number } } | [member: number | { id
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::update
-* @see app/Http/Controllers/Admin/MemberController.php:89
+* @see app/Http/Controllers/Admin/MemberController.php:86
 * @route '/members/{member}'
 */
 update.put = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -301,7 +301,7 @@ update.put = (args: { member: number | { id: number } } | [member: number | { id
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::update
-* @see app/Http/Controllers/Admin/MemberController.php:89
+* @see app/Http/Controllers/Admin/MemberController.php:86
 * @route '/members/{member}'
 */
 const updateForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -316,7 +316,7 @@ const updateForm = (args: { member: number | { id: number } } | [member: number 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::update
-* @see app/Http/Controllers/Admin/MemberController.php:89
+* @see app/Http/Controllers/Admin/MemberController.php:86
 * @route '/members/{member}'
 */
 updateForm.put = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -333,7 +333,7 @@ update.form = updateForm
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::toggle
-* @see app/Http/Controllers/Admin/MemberController.php:103
+* @see app/Http/Controllers/Admin/MemberController.php:100
 * @route '/members/{member}/toggle'
 */
 export const toggle = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -348,7 +348,7 @@ toggle.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::toggle
-* @see app/Http/Controllers/Admin/MemberController.php:103
+* @see app/Http/Controllers/Admin/MemberController.php:100
 * @route '/members/{member}/toggle'
 */
 toggle.url = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -381,7 +381,7 @@ toggle.url = (args: { member: number | { id: number } } | [member: number | { id
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::toggle
-* @see app/Http/Controllers/Admin/MemberController.php:103
+* @see app/Http/Controllers/Admin/MemberController.php:100
 * @route '/members/{member}/toggle'
 */
 toggle.patch = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -391,7 +391,7 @@ toggle.patch = (args: { member: number | { id: number } } | [member: number | { 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::toggle
-* @see app/Http/Controllers/Admin/MemberController.php:103
+* @see app/Http/Controllers/Admin/MemberController.php:100
 * @route '/members/{member}/toggle'
 */
 const toggleForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -406,7 +406,7 @@ const toggleForm = (args: { member: number | { id: number } } | [member: number 
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::toggle
-* @see app/Http/Controllers/Admin/MemberController.php:103
+* @see app/Http/Controllers/Admin/MemberController.php:100
 * @route '/members/{member}/toggle'
 */
 toggleForm.patch = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

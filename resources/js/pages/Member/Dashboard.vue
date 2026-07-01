@@ -1,19 +1,39 @@
 <script setup lang="ts">
 /**
- * Member/Dashboard — placeholder member home (protected route `member.dashboard`,
- * behind `auth:members`).
+ * Member/Dashboard — the LINE-LIFF member home (protected route
+ * `member.dashboard`, behind `auth:members`). This is the flagship member
+ * surface: it opens inside LINE on a phone, so it is MOBILE-FIRST and rendered
+ * through MemberLayout's `feed` variant (a top-aligned column of soft cards on
+ * the warm canvas).
  *
- * For now this is a soft welcome card + sign-out. Real member props (name,
- * avatar, points) and the entitlement cards land in Phase 6 — see TODO below.
+ * Vertical order: greeting → balance hero → active lots → history → a demoted
+ * (low-emphasis) logout at the very bottom. Every number comes from the backend
+ * (DashboardController + the shared MemberEntitlementQuery); the history feed
+ * carries NO staff names.
+ *
+ * Motion: staggered CSS entrance (fade + rise) with ~60–80ms delay increments,
+ * capped ~350ms; all animation collapses to its final state under
+ * prefers-reduced-motion (matching MemberLayout).
  */
 import { Head, router } from '@inertiajs/vue3';
+import MemberAvatar from '@/components/member/MemberAvatar.vue';
+import MemberBalanceCard from '@/components/member/MemberBalanceCard.vue';
+import MemberHistoryList from '@/components/member/MemberHistoryList.vue';
+import MemberLotCard from '@/components/member/MemberLotCard.vue';
 import MemberLayout from '@/layouts/MemberLayout.vue';
+import type {
+    BalanceLine,
+    MemberHistoryRow,
+    MemberLot,
+    MemberProfile,
+} from '@/types/members';
 
-// TODO(Phase 6): the `members` guard user is NOT in the default `auth.user`
-// shared prop (that is the admin/web guard). Share the authenticated member
-// (name, avatar_url, points) from a member-specific controller / middleware and
-// type it, then greet by name here. Entitlement cards (active passes, balances,
-// near-expiry warnings) render below using the state-surface tokens.
+defineProps<{
+    member: MemberProfile;
+    balanceByType: BalanceLine[];
+    lots: MemberLot[];
+    history: MemberHistoryRow[];
+}>();
 
 function logout(): void {
     router.post('/member/logout');
@@ -23,35 +43,105 @@ function logout(): void {
 <template>
     <Head title="สมาชิก" />
 
-    <MemberLayout title="ยินดีต้อนรับ">
-        <div class="flex flex-col items-center gap-6 text-center">
-            <div class="flex flex-col gap-2">
-                <h2
-                    class="font-heading text-lg font-semibold text-[var(--color-ink)]"
-                >
-                    เข้าสู่ระบบสำเร็จ
-                </h2>
-                <p class="text-sm text-[var(--color-ink-muted)]">
-                    คุณเข้าสู่ระบบสมาชิกผ่าน LINE เรียบร้อยแล้ว
-                    สิทธิประโยชน์และบัตรสมาชิกจะแสดงที่นี่เร็ว ๆ นี้
-                </p>
+    <MemberLayout variant="feed">
+        <div class="flex flex-col gap-5">
+            <!-- Greeting -->
+            <header class="member-in flex items-center gap-3">
+                <MemberAvatar
+                    :name="member.name"
+                    :avatar-url="member.avatar_url"
+                />
+                <div class="flex flex-col">
+                    <span class="text-sm text-[var(--color-ink-muted)]">
+                        สวัสดี
+                    </span>
+                    <h1
+                        class="font-heading text-xl font-semibold text-[var(--color-ink)]"
+                    >
+                        {{ member.name }}
+                    </h1>
+                </div>
+            </header>
+
+            <!-- Balance hero -->
+            <div class="member-in" style="--delay: 60ms">
+                <MemberBalanceCard :balance-by-type="balanceByType" />
             </div>
 
-            <!-- TODO(Phase 6): entitlement cards go here (state-surface tokens). -->
-
-            <button
-                type="button"
-                class="member-cta w-full rounded-2xl bg-[var(--color-member-accent)] px-6 py-2.5 text-sm font-medium text-[var(--color-ink)]"
-                @click="logout"
+            <!-- Active lots -->
+            <section
+                v-if="lots.length > 0"
+                class="flex flex-col gap-3"
+                aria-labelledby="member-lots-title"
             >
-                ออกจากระบบ
-            </button>
+                <h2
+                    id="member-lots-title"
+                    class="member-in font-heading text-sm font-semibold text-[var(--color-ink-muted)]"
+                    style="--delay: 120ms"
+                >
+                    แพ็กเกจของคุณ
+                </h2>
+                <div
+                    v-for="(lot, i) in lots"
+                    :key="lot.id"
+                    class="member-in"
+                    :style="{
+                        '--delay': `${Math.min(120 + (i + 1) * 60, 350)}ms`,
+                    }"
+                >
+                    <MemberLotCard :lot="lot" />
+                </div>
+            </section>
+
+            <!-- History -->
+            <section class="flex flex-col gap-3" aria-labelledby="member-history-title">
+                <h2
+                    id="member-history-title"
+                    class="member-in font-heading text-sm font-semibold text-[var(--color-ink-muted)]"
+                    style="--delay: 300ms"
+                >
+                    ประวัติการใช้งาน
+                </h2>
+                <div class="member-in" style="--delay: 340ms">
+                    <MemberHistoryList :history="history" />
+                </div>
+            </section>
+
+            <!-- Demoted logout (low-emphasis, soft accent) -->
+            <div class="member-in mt-2" style="--delay: 350ms">
+                <button
+                    type="button"
+                    class="member-cta w-full rounded-2xl bg-[var(--color-member-accent)] px-6 py-3 text-sm font-medium text-[var(--color-ink)]"
+                    @click="logout"
+                >
+                    ออกจากระบบ
+                </button>
+            </div>
         </div>
     </MemberLayout>
 </template>
 
 <style scoped>
+.member-in {
+    /* Staggered soft entrance — fade + gentle rise, per-element `--delay`. */
+    animation: member-card-in 200ms ease-out both;
+    animation-delay: var(--delay, 0ms);
+}
+
+@keyframes member-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .member-cta {
+    min-height: 44px;
     transition:
         filter 160ms ease-out,
         transform 160ms ease-out;
@@ -71,6 +161,11 @@ function logout(): void {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .member-in {
+        /* Snap to final state instantly — no fade/rise. */
+        animation: none;
+    }
+
     .member-cta {
         transition: none;
     }

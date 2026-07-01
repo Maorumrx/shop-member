@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Auth\MemberLineLoginController;
+use App\Http\Controllers\Member\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,6 +34,7 @@ Route::middleware('auth:members')->group(function () {
     Route::post('member/logout', [MemberLineLoginController::class, 'destroy'])
         ->name('member.logout');
 
-    // Member dashboard — entitlement cards land here in Phase 6.
-    Route::inertia('member/dashboard', 'Member/Dashboard')->name('member.dashboard');
+    // Member dashboard — the LINE-LIFF member home (Phase 6): balance hero,
+    // active lots, and recent history from the shared MemberEntitlementQuery.
+    Route::get('member/dashboard', [DashboardController::class, 'index'])->name('member.dashboard');
 });
