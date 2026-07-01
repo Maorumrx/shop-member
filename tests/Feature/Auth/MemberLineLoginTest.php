@@ -60,32 +60,43 @@ function memLoginWithLine(string $token = 'liff-id-token')
     return test()->postJson(route('member.line.login'), ['id_token' => $token]);
 }
 
-it('creates a member and authenticates the members guard on first login', function () {
+it('parks an unmatched first login as needs_link WITHOUT creating a member or logging in', function () {
+    // Design change (member-line-linking §4.1): an UNMATCHED first login NO LONGER
+    // auto-creates an empty row (that stranded counter packages). Instead it stashes
+    // the verified LINE identity in the session (`pending_line`) and returns
+    // { ok: false, state: 'needs_link' } — nobody is logged in yet.
     memFakeLineOk();
 
     $response = memLoginWithLine();
 
-    $response->assertOk()->assertJson(['ok' => true]);
+    $response->assertOk()->assertJson(['ok' => false, 'state' => 'needs_link']);
 
-    $this->assertAuthenticated('members');
-    expect(Member::query()->count())->toBe(1);
+    // The verified LINE identity is parked in the session for the follow-up
+    // submit-code / create-new endpoints to consume (asserted on the request session).
+    // Check the identity fields only — the controller also stamps an `at` timestamp
+    // (pending-window TTL, §4.1), so assert via a closure rather than an exact array.
+    $response->assertSessionHas('pending_line', function (array $pending): bool {
+        return $pending['sub'] === MEM_SUB
+            && $pending['name'] === 'LINE Display Name'
+            && $pending['picture'] === 'https://line.example/avatar.jpg';
+    });
 
-    $member = Member::query()->firstWhere('line_user_id', MEM_SUB);
-    expect($member)->not->toBeNull();
-    expect($member->name)->toBe('LINE Display Name');
-    expect($member->avatar_url)->toBe('https://line.example/avatar.jpg');
-    expect($member->is_active)->toBeTrue();
+    // No member row is created for the unmatched sub, and no one is authenticated.
+    $this->assertGuest('members');
+    expect(Member::query()->count())->toBe(0);
+    expect(Member::query()->where('line_user_id', MEM_SUB)->count())->toBe(0);
 });
 
-it('does not create a duplicate member on a second login with the same token', function () {
+it('still creates no member on a repeated unmatched login (needs_link every time)', function () {
+    // Re-opening the LIFF page (a second unmatched login) again parks needs_link and
+    // still creates nothing — no duplicate, no accidental auto-create.
     memFakeLineOk();
 
-    memLoginWithLine()->assertOk();
-    // Second hit (e.g. re-open the LIFF page) resolves the existing row.
-    memLoginWithLine()->assertOk();
+    memLoginWithLine()->assertOk()->assertJson(['ok' => false, 'state' => 'needs_link']);
+    memLoginWithLine()->assertOk()->assertJson(['ok' => false, 'state' => 'needs_link']);
 
-    expect(Member::query()->where('line_user_id', MEM_SUB)->count())->toBe(1);
-    expect(Member::query()->count())->toBe(1);
+    $this->assertGuest('members');
+    expect(Member::query()->count())->toBe(0);
 });
 
 it('rejects an inactive member with 403 and leaves the guard a guest', function () {
@@ -131,7 +142,9 @@ it('rejects a soft-deleted member as unavailable without restoring or duplicatin
 it('does not overwrite an admin-set name on login (only backfills empty fields)', function () {
     memFakeLineOk();
 
-    // Admin pre-created and named this member; avatar left empty for backfill.
+    // Admin pre-created and named this member, and it is ALREADY LINE-linked
+    // (line_user_id === MEM_SUB) so this login takes the MATCHED path — the only
+    // path that still logs in + backfills empties. Avatar left empty for backfill.
     Member::create([
         'line_user_id' => MEM_SUB,
         'name' => 'Admin Curated Name',
@@ -161,7 +174,15 @@ it('returns 422 and stays a guest when LINE rejects the token', function () {
 it('does not authenticate the admin web guard when a member logs in (guard isolation)', function () {
     memFakeLineOk();
 
-    memLoginWithLine()->assertOk();
+    // Pre-link a member so this login takes the MATCHED path and actually logs in
+    // on the members guard (an unmatched login only parks needs_link, no auth).
+    Member::create([
+        'line_user_id' => MEM_SUB,
+        'name' => 'Linked Member',
+        'is_active' => true,
+    ]);
+
+    memLoginWithLine()->assertOk()->assertJson(['ok' => true]);
 
     $this->assertAuthenticated('members');
     // A customer session must never satisfy the admin guard.

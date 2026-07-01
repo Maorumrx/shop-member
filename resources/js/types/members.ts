@@ -165,3 +165,38 @@ export type RedemptionResult = {
     qty: number;
     movements: RedemptionMovement[];
 };
+
+/* ── Phase 8 — Member ↔ LINE account linking ─────────────────────────────── */
+
+/**
+ * The one-off claim code flashed back to Admin/Members/Show under `linkCode`
+ * after a successful `POST /members/{member}/link-code`
+ * (docs/member-line-linking-design.md §4.2). `code` is the plaintext 6-digit
+ * value shown ONCE to staff (never persisted); `expires_at` is an ISO-8601
+ * string the page renders via `formatThaiDateTime`.
+ */
+export type LinkCode = {
+    code: string;
+    expires_at: string;
+};
+
+/**
+ * JSON returned by `POST /member/line/login` (NOT an Inertia response — the LIFF
+ * page reads it via axios, §4.1):
+ *  - `{ ok: true }` → a matching member exists and is now logged in → dashboard.
+ *  - `{ ok: false, state: 'needs_link' }` → first-time LINE user, verified but
+ *    unlinked; the page shows the link-or-create choice screen. The verified LINE
+ *    identity is parked server-side in the `pending_line` session.
+ *  - a 422 body `{ ok: false, message }` (LINE verify failed) is surfaced by the
+ *    existing axios error path, not this success union.
+ */
+export type LineLoginResponse =
+    { ok: true } | { ok: false; state: 'needs_link' };
+
+/**
+ * JSON returned by the pending-state follow-ups `POST /member/line/submit-code`
+ * and `POST /member/line/create-new` (§4.2). On `ok` the member is logged in →
+ * redirect to the dashboard. A 422 body `{ ok: false, message }` (invalid /
+ * expired / burned code, or an expired pending session) is shown to the customer.
+ */
+export type LineLinkResponse = { ok: true } | { ok: false; message: string };

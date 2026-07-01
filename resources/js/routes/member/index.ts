@@ -84,7 +84,7 @@ login.form = loginForm
 
 /**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::logout
-* @see app/Http/Controllers/Auth/MemberLineLoginController.php:117
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:278
 * @route '/member/logout'
 */
 export const logout = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -99,7 +99,7 @@ logout.definition = {
 
 /**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::logout
-* @see app/Http/Controllers/Auth/MemberLineLoginController.php:117
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:278
 * @route '/member/logout'
 */
 logout.url = (options?: RouteQueryOptions) => {
@@ -108,7 +108,7 @@ logout.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::logout
-* @see app/Http/Controllers/Auth/MemberLineLoginController.php:117
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:278
 * @route '/member/logout'
 */
 logout.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -118,7 +118,7 @@ logout.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::logout
-* @see app/Http/Controllers/Auth/MemberLineLoginController.php:117
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:278
 * @route '/member/logout'
 */
 const logoutForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -128,7 +128,7 @@ const logoutForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> =>
 
 /**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::logout
-* @see app/Http/Controllers/Auth/MemberLineLoginController.php:117
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:278
 * @route '/member/logout'
 */
 logoutForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

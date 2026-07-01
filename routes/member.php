@@ -31,6 +31,20 @@ Route::post('member/line/login', [MemberLineLoginController::class, 'store'])
     ->middleware('throttle:10,1')
     ->name('member.line.login');
 
+// Public: the FIRST-LOGIN "needs_link" follow-ups (docs/member-line-linking-design.md
+// §4.2). Both are reachable WHILE UNAUTHENTICATED on the members guard — they act on
+// the verified LINE identity parked in the session (`pending_line`) by the login above,
+// and only THEN log the member in. Throttled per the design's per-caller guard (§3).
+//   - submit-code  attach the pending LINE identity to a counter member via a
+//                  staff-issued 6-digit claim code (MemberLinkService::claim).
+//   - create-new   the "I'm new / no code" choice — the only remaining auto-create.
+Route::post('member/line/submit-code', [MemberLineLoginController::class, 'submitCode'])
+    ->middleware('throttle:link-claim')
+    ->name('member.line.submit-code');
+Route::post('member/line/create-new', [MemberLineLoginController::class, 'createNew'])
+    ->middleware('throttle:link-claim')
+    ->name('member.line.create-new');
+
 // Authenticated member area (the `members` guard).
 Route::middleware('auth:members')->group(function () {
     Route::post('member/logout', [MemberLineLoginController::class, 'destroy'])

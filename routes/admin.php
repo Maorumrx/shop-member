@@ -75,6 +75,12 @@ Route::middleware(['auth', 'verified', 'role:owner,staff'])->group(function () {
     Route::put('members/{member}', [MemberController::class, 'update'])->name('members.update');
     Route::patch('members/{member}/toggle', [MemberController::class, 'toggle'])->name('members.toggle');
 
+    // Generate a LINE claim code for an unlinked member (Phase 8, member-line-linking
+    // §4.2). Staff-only surface (owner+staff group); returns the one-off plaintext
+    // code flashed back to Members/Show. Blocked (flash error) for a member that is
+    // already LINE-linked / inactive / deleted.
+    Route::post('members/{member}/link-code', [MemberController::class, 'generateLinkCode'])->name('members.link-code');
+
     // Sell a package to a member (the Phase-4 core). Atomic mint via PurchaseService.
     Route::post('members/{member}/purchases', [PurchaseController::class, 'store'])->name('members.purchases.store');
 

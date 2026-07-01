@@ -113,5 +113,16 @@ class FortifyServiceProvider extends ServiceProvider
                 ($request->input('credential.id') ?: $request->session()->getId()).'|'.$request->ip(),
             );
         });
+
+        // Member LINE account-linking follow-ups (submit-code / create-new). Keyed on
+        // the SERVER-VERIFIED pending LINE `sub` (un-spoofable) so an attacker can't
+        // reset the online-guess budget by rotating IPs, and so customers sharing a
+        // carrier/NAT egress IP don't throttle each other; falls back to IP when there
+        // is no pending session.
+        RateLimiter::for('link-claim', function (Request $request) {
+            $key = $request->session()->get('pending_line.sub') ?: $request->ip();
+
+            return Limit::perMinute(10)->by('link-claim|'.$key);
+        });
     }
 }

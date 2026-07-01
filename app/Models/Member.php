@@ -116,4 +116,18 @@ class Member extends Authenticatable
     {
         return $this->hasMany(EntitlementLedger::class);
     }
+
+    /**
+     * LINE claim codes minted for this member (docs/member-line-linking-design.md
+     * §2). Mostly dead rows (consumed/expired) retained for audit; at most ONE is
+     * live at a time (service-enforced supersede, MemberLinkService::generate()).
+     * Useful for the admin "has a live code?" badge via
+     * `whereNull('consumed_at')->where('expires_at', '>', now())`.
+     *
+     * @return HasMany<MemberLinkCode, $this>
+     */
+    public function linkCodes(): HasMany
+    {
+        return $this->hasMany(MemberLinkCode::class);
+    }
 }

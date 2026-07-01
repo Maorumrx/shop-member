@@ -18,6 +18,7 @@ import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     CalendarPlus,
     History,
+    Link2,
     Pencil,
     Scissors,
     ShoppingCart,
@@ -48,12 +49,14 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { formatBaht } from '@/lib/money';
+import { formatThaiDateTime } from '@/lib/thai';
 import type {
     ActivePackageOption,
     BalanceLine,
     EntitlementStatus,
     HistoryReason,
     HistoryRow,
+    LinkCode,
     MemberDetail,
     RedemptionResult,
 } from '@/types/members';
@@ -311,6 +314,45 @@ function redeem(line: BalanceLine): void {
     });
 }
 
+/* ── LINE account linking (generate claim code) ─────────────────────────── */
+/**
+ * Linked state is read straight off the member prop — `line_user_id` is already
+ * serialized on the Show payload (it drives the header badge). A linked member
+ * is never eligible for a new code, so we hide the generate button entirely and
+ * show a subtle "เชื่อม LINE แล้ว" note instead (design §1 / §3).
+ */
+const isLineLinked = computed<boolean>(
+    () => props.member.line_user_id !== null,
+);
+
+/** The one-off plaintext code, captured from the flashed `linkCode` (below). */
+const linkCode = ref<LinkCode | null>(null);
+const generatingCode = ref(false);
+
+/**
+ * Mint a fresh claim code for this (unlinked) member. The controller flashes back
+ * `linkCode = { code, expires_at }` + a success toast, so we just POST and let the
+ * flash listener render the code. `preserveScroll` keeps the operator in place.
+ */
+function generateLinkCode(): void {
+    if (generatingCode.value || isLineLinked.value) {
+        return;
+    }
+
+    generatingCode.value = true;
+
+    router.post(
+        `/members/${props.member.id}/link-code`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                generatingCode.value = false;
+            },
+        },
+    );
+}
+
 /* ── Optional: surface the detailed redemption result ───────────────────── */
 /**
  * The controller flashes a detailed `redemption` result (what was actually
@@ -338,6 +380,14 @@ function describeRedemption(result: RedemptionResult): string {
 onMounted(() => {
     stopFlashListener = router.on('flash', (event) => {
         const flash = (event as CustomEvent).detail?.flash;
+
+        // A freshly generated LINE claim code (flashed once, never persisted).
+        const code = flash?.linkCode as LinkCode | undefined;
+
+        if (code?.code) {
+            linkCode.value = code;
+        }
+
         const result = flash?.redemption as RedemptionResult | undefined;
 
         if (!result || result.movements.length === 0) {
@@ -427,6 +477,71 @@ onUnmounted(() => {
                     </div>
                 </div>
             </CardHeader>
+        </Card>
+
+        <!-- LINE account linking (generate claim code) -->
+        <Card>
+            <CardHeader>
+                <CardTitle class="flex items-center gap-2 text-base">
+                    <Link2 class="size-4 text-muted-foreground" />
+                    เชื่อมบัญชี LINE
+                </CardTitle>
+            </CardHeader>
+            <CardContent class="flex flex-col gap-4">
+                <!-- Already linked: no code to generate. -->
+                <div
+                    v-if="isLineLinked"
+                    class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
+                    <Badge variant="secondary">เชื่อม LINE แล้ว</Badge>
+                    <span>สมาชิกนี้ผูกบัญชี LINE เรียบร้อยแล้ว</span>
+                </div>
+
+                <template v-else>
+                    <p class="text-sm text-muted-foreground">
+                        สร้างรหัส 6 หลักให้ลูกค้ากรอกในแอป LINE
+                        เพื่อผูกสิทธิ์ทั้งหมดของสมาชิกนี้เข้ากับบัญชี LINE
+                        ของลูกค้า
+                    </p>
+
+                    <!-- Freshly generated code — shown once, prominently. -->
+                    <div
+                        v-if="linkCode"
+                        class="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-4 py-4"
+                    >
+                        <p
+                            class="font-heading text-4xl font-bold tracking-[0.3em] tabular-nums"
+                        >
+                            {{ linkCode.code }}
+                        </p>
+                        <p class="text-sm text-muted-foreground">
+                            ให้ลูกค้ากรอกรหัสนี้ในแอป LINE ภายในเวลาที่กำหนด
+                            (หมดอายุ
+                            {{ formatThaiDateTime(linkCode.expires_at) }})
+                        </p>
+                        <p class="text-xs text-muted-foreground">
+                            รหัสล่าสุดที่สร้างเท่านั้นที่ใช้ได้ —
+                            การสร้างรหัสใหม่จะทำให้รหัสเดิมใช้ไม่ได้ทันที
+                        </p>
+                    </div>
+
+                    <div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            :disabled="generatingCode"
+                            @click="generateLinkCode"
+                        >
+                            <Link2 />
+                            {{
+                                linkCode
+                                    ? 'สร้างรหัสใหม่'
+                                    : 'สร้างรหัสเชื่อม LINE'
+                            }}
+                        </Button>
+                    </div>
+                </template>
+            </CardContent>
         </Card>
 
         <!-- Balance summary -->

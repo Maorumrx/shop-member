@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exceptions\LinkException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreMemberRequest;
 use App\Http\Requests\Admin\UpdateMemberRequest;
 use App\Models\Member;
 use App\Models\Package;
+use App\Services\Line\MemberLinkService;
 use App\Services\Member\MemberEntitlementQuery;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -107,6 +110,46 @@ class MemberController extends Controller
         ]);
 
         return back();
+    }
+
+    /**
+     * Generate a LINE claim code for an unlinked, active, non-deleted member
+     * (docs/member-line-linking-design.md §4.2). Staff show the returned 6-digit
+     * plaintext to the customer, who types it in LINE to attach their account to
+     * THIS counter member (keeping name/phone/packages).
+     *
+     * The plaintext code is returned ONCE (never stored) — flashed back as a
+     * `linkCode` prop so the Members/Show page can display it (mirroring how the
+     * redemption breakdown is flashed by RedemptionController). Regenerating
+     * supersedes any live code inside one transaction (MemberLinkService::generate).
+     *
+     * Blocked (flash error, back) if the member is already linked / inactive /
+     * deleted — a {@see LinkException} from the service is surfaced as a clean toast
+     * rather than a 500. Route-model binding already 404s a hard-missing member; the
+     * service's own re-check under a lock is the authoritative guard.
+     */
+    public function generateLinkCode(Request $request, Member $member, MemberLinkService $links): RedirectResponse
+    {
+        try {
+            $result = $links->generate($member, $request->user());
+        } catch (LinkException $e) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => __('สร้างรหัสไม่ได้: สมาชิกนี้เชื่อม LINE แล้ว หรือถูกปิด/ลบ'),
+            ]);
+
+            return back();
+        }
+
+        // Flash the one-off plaintext code + expiry so the Show page can display it
+        // (the code is never persisted or recoverable — this is the only chance).
+        Inertia::flash('linkCode', [
+            'code' => $result['code'],
+            'expires_at' => $result['expires_at'],
+        ]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('สร้างรหัสเชื่อม LINE แล้ว')]);
+
+        return to_route('members.show', $member);
     }
 
     /**
