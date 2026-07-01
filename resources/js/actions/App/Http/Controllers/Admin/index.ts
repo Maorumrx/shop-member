@@ -4,6 +4,7 @@ import ShopSettingController from './ShopSettingController'
 import MemberController from './MemberController'
 import PurchaseController from './PurchaseController'
 import RedemptionController from './RedemptionController'
+import BookingController from './BookingController'
 
 const Admin = {
     BranchController: Object.assign(BranchController, BranchController),
@@ -12,6 +13,7 @@ const Admin = {
     MemberController: Object.assign(MemberController, MemberController),
     PurchaseController: Object.assign(PurchaseController, PurchaseController),
     RedemptionController: Object.assign(RedemptionController, RedemptionController),
+    BookingController: Object.assign(BookingController, BookingController),
 }
 
 export default Admin

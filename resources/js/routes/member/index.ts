@@ -1,5 +1,6 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 import line from './line'
+import bookings from './bookings'
 /**
 * @see \Inertia\Controller::__invoke
 * @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
@@ -218,11 +219,118 @@ dashboardForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> =
 
 dashboard.form = dashboardForm
 
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @route '/member/dev-login/{member}'
+*/
+export const devLogin = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: devLogin.url(args, options),
+    method: 'get',
+})
+
+devLogin.definition = {
+    methods: ["get","head"],
+    url: '/member/dev-login/{member}',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @route '/member/dev-login/{member}'
+*/
+devLogin.url = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { member: args }
+    }
+
+    if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
+        args = { member: args.id }
+    }
+
+    if (Array.isArray(args)) {
+        args = {
+            member: args[0],
+        }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+        member: typeof args.member === 'object'
+        ? args.member.id
+        : args.member,
+    }
+
+    return devLogin.definition.url
+            .replace('{member}', parsedArgs.member.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @route '/member/dev-login/{member}'
+*/
+devLogin.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: devLogin.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @route '/member/dev-login/{member}'
+*/
+devLogin.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: devLogin.url(args, options),
+    method: 'head',
+})
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @route '/member/dev-login/{member}'
+*/
+const devLoginForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: devLogin.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @route '/member/dev-login/{member}'
+*/
+devLoginForm.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: devLogin.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @route '/member/dev-login/{member}'
+*/
+devLoginForm.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: devLogin.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+devLogin.form = devLoginForm
+
 const member = {
     login: Object.assign(login, login),
     line: Object.assign(line, line),
     logout: Object.assign(logout, logout),
     dashboard: Object.assign(dashboard, dashboard),
+    bookings: Object.assign(bookings, bookings),
+    devLogin: Object.assign(devLogin, devLogin),
 }
 
 export default member
