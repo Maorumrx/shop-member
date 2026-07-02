@@ -24,9 +24,33 @@ return Application::configure(basePath: dirname(__DIR__))
             // owner+staff) — loaded under `web` for sessions/CSRF/Inertia; per-route
             // auth (role:owner / role:owner,staff) lives inside routes/admin.php.
             Route::middleware('web')->group(base_path('routes/admin.php'));
+
+            // DEV-ONLY routes (passwordless member dev-login) — loaded under `web`
+            // like the others, but ONLY in the local environment, so they are NEVER
+            // registered in staging/production. This is layer 1 of the dev-login
+            // hardening; the controller adds env + config-flag + host guards on top.
+            if (app()->environment('local')) {
+                Route::middleware('web')->group(base_path('routes/dev.php'));
+            }
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust ONLY the two explicit production hosts, rejecting requests with a
+        // spoofed/absolute Host header (cache-poisoning, password-reset host
+        // injection). Registered ONLY in production so the TrustHosts middleware is
+        // never even wired up in local/staging/CI — it therefore can NOT 400 local
+        // dev, `*.test`, or CI hosts. (Laravel also skips host enforcement in `local`
+        // and during unit tests by default, so this is belt-and-braces.)
+        // `subdomains: false` — `www` is listed explicitly; we deliberately do NOT
+        // trust all `*.bansuan-thaimassage.com` (a takeover-able subdomain CNAME
+        // would otherwise inherit host trust).
+        if (app()->environment('production')) {
+            $middleware->trustHosts(
+                at: ['bansuan-thaimassage.com', 'www.bansuan-thaimassage.com'],
+                subdomains: false,
+            );
+        }
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->web(append: [

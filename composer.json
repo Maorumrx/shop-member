@@ -60,6 +60,9 @@
         "lint:check": [
             "pint --parallel --test"
         ],
+        "deploy-check": [
+            "@php artisan app:assert-production-safe"
+        ],
         "ci:check": [
             "Composer\\Config::disableProcessTimeout",
             "npm run lint:check",

@@ -43,6 +43,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Dev Member Login (passwordless testing backdoor)
+    |--------------------------------------------------------------------------
+    |
+    | Opt-in flag for the LOCAL-ONLY passwordless member login used to browse
+    | the member LIFF UI without a real LINE device. Defaults to FALSE and MUST
+    | stay unset/false in every non-local environment. This is a second, explicit
+    | lock ON TOP of the `local` environment check — so a future APP_ENV slip
+    | (the 2026 prod incident) alone can NOT reopen the backdoor. See
+    | App\Http\Controllers\Dev\MemberDevLoginController.
+    |
+    */
+
+    'dev_login_enabled' => (bool) env('DEV_LOGIN_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

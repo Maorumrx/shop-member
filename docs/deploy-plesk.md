@@ -78,10 +78,23 @@ npm run build         # produces public/build (Wayfinder also regenerates via ph
 ## 7. Optimize (production caches)
 ```
 php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+php artisan app:assert-production-safe && php artisan route:cache && php artisan view:cache
 ```
 ⚠️ After ANY `.env` change, re-run `php artisan config:cache` (cached config ignores raw .env).
+
+### 7a. DEPLOY GUARDRAIL — `app:assert-production-safe` (MANDATORY, do not skip)
+`php artisan app:assert-production-safe` runs **right after `config:cache`** so it checks the
+*cached, resolved* config the app will actually serve. It exits **non-zero** unless BOTH
+`APP_ENV=production` **and** `APP_DEBUG=false`, and prints a red reason why.
+
+The `&&` chain above means a misconfigured deploy **ABORTS here**: `route:cache` / `view:cache`
+never run, so the deploy fails LOUDLY instead of silently going live. If it fails:
+fix `.env`, re-run `php artisan config:cache`, then re-run the line.
+
+> Why: a confirmed incident had production (`bansuan-thaimassage.com`) running `APP_ENV=local` +
+> `APP_DEBUG=true`, which exposed a passwordless dev backdoor (`/member/dev-login`) and leaked
+> secrets via the Ignition error page. This guardrail makes that class of misdeploy impossible to
+> ship silently. (Composer alias: `composer deploy-check`.)
 
 ## 8. Scheduled task (Plesk → Scheduled Tasks)
 Add a task running **every minute**:
@@ -105,10 +118,25 @@ Open `https://liff.line.me/2010556567-MMXvxEIe` in the LINE app, then the checkl
 
 ---
 
+## 12. Post-deploy verification (run AFTER every deploy)
+Confirm the guardrail's intent actually holds on the live site:
+- [ ] `php artisan config:show app.env app.debug` shows **`app.env => production`** and **`app.debug => false`**.
+- [ ] `curl -s -o /dev/null -w "%{http_code}\n" https://bansuan-thaimassage.com/member/dev-login` returns **`404`** (the passwordless dev backdoor is NOT reachable in production).
+- [ ] `php artisan app:assert-production-safe` exits **0** (`echo $?` → `0`).
+- [ ] Trigger any error page and confirm it shows the generic Laravel error, **not** the Ignition debug page (no stack traces / no secrets).
+
+---
+
 ## Gotchas
 - **HTTPS behind Plesk's nginx proxy**: if login redirects to `http://` or cookies don't stick, Laravel isn't
-  seeing the proxy's `X-Forwarded-Proto`. Fix: add `->trustProxies(at: '*')` in `bootstrap/app.php`'s
-  `withMiddleware(...)`. (Tell me and I'll add it.)
+  seeing the proxy's `X-Forwarded-Proto`. Fix: in `bootstrap/app.php`'s `withMiddleware(...)` add
+  `->trustProxies(at: '127.0.0.1')` — scope it to the ACTUAL upstream (Plesk's nginx sits on loopback;
+  use the real proxy IP/CIDR Plesk shows if not `127.0.0.1`). (Tell me and I'll add it.)
+  - ⚠️ **Do NOT use `at: '*'`.** Trusting every proxy makes Symfony trust attacker-supplied
+    `X-Forwarded-Host` / `X-Forwarded-For` from anyone, which widens `Request::getHost()` — a
+    host-spoofing / cache-poisoning risk that can also DEFEAT host-based guards (e.g. the
+    `/member/dev-login` backdoor guard). Corollary: the app must **never** rely on `getHost()` for a
+    security decision; gate the dev backdoor on `config('app.env')`/`app()->isLocal()`, not the Host header.
 - **`config:cache` + .env**: cached config ignores later .env edits → re-run `config:cache` after changes.
 - **Cron PHP binary**: use the exact PHP 8.4 path Plesk provides (not a system `php` that might be older).
 - **File permissions**: `storage/` and `bootstrap/cache/` must be writable by the `maorulabs` system user.
