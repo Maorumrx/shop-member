@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition } from './../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::login
 * @see app/Http/Controllers/Auth/MemberLineLoginController.php:66
@@ -32,6 +32,28 @@ login.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     url: login.url(options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Auth\MemberLineLoginController::login
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:66
+* @route '/member/line/login'
+*/
+const loginForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: login.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Auth\MemberLineLoginController::login
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:66
+* @route '/member/line/login'
+*/
+loginForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: login.url(options),
+    method: 'post',
+})
+
+login.form = loginForm
 
 /**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::submitCode
@@ -68,6 +90,28 @@ submitCode.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 })
 
 /**
+* @see \App\Http\Controllers\Auth\MemberLineLoginController::submitCode
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:162
+* @route '/member/line/submit-code'
+*/
+const submitCodeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: submitCode.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Auth\MemberLineLoginController::submitCode
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:162
+* @route '/member/line/submit-code'
+*/
+submitCodeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: submitCode.url(options),
+    method: 'post',
+})
+
+submitCode.form = submitCodeForm
+
+/**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::createNew
 * @see app/Http/Controllers/Auth/MemberLineLoginController.php:214
 * @route '/member/line/create-new'
@@ -100,6 +144,28 @@ createNew.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     url: createNew.url(options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Auth\MemberLineLoginController::createNew
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:214
+* @route '/member/line/create-new'
+*/
+const createNewForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: createNew.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Auth\MemberLineLoginController::createNew
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:214
+* @route '/member/line/create-new'
+*/
+createNewForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: createNew.url(options),
+    method: 'post',
+})
+
+createNew.form = createNewForm
 
 const line = {
     login: Object.assign(login, login),

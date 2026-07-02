@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 import line from './line'
 import bookings from './bookings'
 /**
@@ -46,6 +46,43 @@ login.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
 /**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+const loginForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: login.url(options),
+    method: 'get',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+loginForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: login.url(options),
+    method: 'get',
+})
+
+/**
+* @see \Inertia\Controller::__invoke
+* @see vendor/inertiajs/inertia-laravel/src/Controller.php:13
+* @route '/member'
+*/
+loginForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: login.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+login.form = loginForm
+
+/**
 * @see \App\Http\Controllers\Auth\MemberLineLoginController::logout
 * @see app/Http/Controllers/Auth/MemberLineLoginController.php:287
 * @route '/member/logout'
@@ -78,6 +115,28 @@ logout.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     url: logout.url(options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Auth\MemberLineLoginController::logout
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:287
+* @route '/member/logout'
+*/
+const logoutForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: logout.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Auth\MemberLineLoginController::logout
+* @see app/Http/Controllers/Auth/MemberLineLoginController.php:287
+* @route '/member/logout'
+*/
+logoutForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: logout.url(options),
+    method: 'post',
+})
+
+logout.form = logoutForm
 
 /**
 * @see \App\Http\Controllers\Member\DashboardController::dashboard
@@ -122,6 +181,43 @@ dashboard.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: dashboard.url(options),
     method: 'head',
 })
+
+/**
+* @see \App\Http\Controllers\Member\DashboardController::dashboard
+* @see app/Http/Controllers/Member/DashboardController.php:35
+* @route '/member/dashboard'
+*/
+const dashboardForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: dashboard.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Member\DashboardController::dashboard
+* @see app/Http/Controllers/Member/DashboardController.php:35
+* @route '/member/dashboard'
+*/
+dashboardForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: dashboard.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Member\DashboardController::dashboard
+* @see app/Http/Controllers/Member/DashboardController.php:35
+* @route '/member/dashboard'
+*/
+dashboardForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: dashboard.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+dashboard.form = dashboardForm
 
 /**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
@@ -190,6 +286,43 @@ devLogin.head = (args: { member: number | { id: number } } | [member: number | {
     url: devLogin.url(args, options),
     method: 'head',
 })
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:125
+* @route '/member/dev-login/{member}'
+*/
+const devLoginForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: devLogin.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:125
+* @route '/member/dev-login/{member}'
+*/
+devLoginForm.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: devLogin.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Dev\MemberDevLoginController::devLogin
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:125
+* @route '/member/dev-login/{member}'
+*/
+devLoginForm.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: devLogin.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+devLogin.form = devLoginForm
 
 const member = {
     login: Object.assign(login, login),

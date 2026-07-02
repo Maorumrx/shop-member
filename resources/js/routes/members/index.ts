@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 import wallet from './wallet'
 import topups from './topups'
 /**
@@ -46,6 +46,43 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
 /**
+* @see \App\Http\Controllers\Admin\MemberController::index
+* @see app/Http/Controllers/Admin/MemberController.php:40
+* @route '/members'
+*/
+const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: index.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::index
+* @see app/Http/Controllers/Admin/MemberController.php:40
+* @route '/members'
+*/
+indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: index.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::index
+* @see app/Http/Controllers/Admin/MemberController.php:40
+* @route '/members'
+*/
+indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: index.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+index.form = indexForm
+
+/**
 * @see \App\Http\Controllers\Admin\MemberController::store
 * @see app/Http/Controllers/Admin/MemberController.php:77
 * @route '/members'
@@ -78,6 +115,28 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     url: store.url(options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::store
+* @see app/Http/Controllers/Admin/MemberController.php:77
+* @route '/members'
+*/
+const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: store.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::store
+* @see app/Http/Controllers/Admin/MemberController.php:77
+* @route '/members'
+*/
+storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: store.url(options),
+    method: 'post',
+})
+
+store.form = storeForm
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::show
@@ -148,6 +207,43 @@ show.head = (args: { member: number | { id: number } } | [member: number | { id:
 })
 
 /**
+* @see \App\Http\Controllers\Admin\MemberController::show
+* @see app/Http/Controllers/Admin/MemberController.php:171
+* @route '/members/{member}'
+*/
+const showForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: show.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::show
+* @see app/Http/Controllers/Admin/MemberController.php:171
+* @route '/members/{member}'
+*/
+showForm.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: show.url(args, options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::show
+* @see app/Http/Controllers/Admin/MemberController.php:171
+* @route '/members/{member}'
+*/
+showForm.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: show.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+show.form = showForm
+
+/**
 * @see \App\Http\Controllers\Admin\MemberController::update
 * @see app/Http/Controllers/Admin/MemberController.php:90
 * @route '/members/{member}'
@@ -204,6 +300,38 @@ update.put = (args: { member: number | { id: number } } | [member: number | { id
     url: update.url(args, options),
     method: 'put',
 })
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::update
+* @see app/Http/Controllers/Admin/MemberController.php:90
+* @route '/members/{member}'
+*/
+const updateForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: update.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PUT',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::update
+* @see app/Http/Controllers/Admin/MemberController.php:90
+* @route '/members/{member}'
+*/
+updateForm.put = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: update.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PUT',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+update.form = updateForm
 
 /**
 * @see \App\Http\Controllers\Admin\MemberController::toggle
@@ -264,6 +392,38 @@ toggle.patch = (args: { member: number | { id: number } } | [member: number | { 
 })
 
 /**
+* @see \App\Http\Controllers\Admin\MemberController::toggle
+* @see app/Http/Controllers/Admin/MemberController.php:104
+* @route '/members/{member}/toggle'
+*/
+const toggleForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: toggle.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PATCH',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::toggle
+* @see app/Http/Controllers/Admin/MemberController.php:104
+* @route '/members/{member}/toggle'
+*/
+toggleForm.patch = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: toggle.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'PATCH',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+toggle.form = toggleForm
+
+/**
 * @see \App\Http\Controllers\Admin\MemberController::linkCode
 * @see app/Http/Controllers/Admin/MemberController.php:132
 * @route '/members/{member}/link-code'
@@ -320,6 +480,28 @@ linkCode.post = (args: { member: number | { id: number } } | [member: number | {
     url: linkCode.url(args, options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::linkCode
+* @see app/Http/Controllers/Admin/MemberController.php:132
+* @route '/members/{member}/link-code'
+*/
+const linkCodeForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: linkCode.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberController::linkCode
+* @see app/Http/Controllers/Admin/MemberController.php:132
+* @route '/members/{member}/link-code'
+*/
+linkCodeForm.post = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: linkCode.url(args, options),
+    method: 'post',
+})
+
+linkCode.form = linkCodeForm
 
 const members = {
     wallet: Object.assign(wallet, wallet),

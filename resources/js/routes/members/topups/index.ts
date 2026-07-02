@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Admin\TopupController::store
 * @see app/Http/Controllers/Admin/TopupController.php:36
@@ -56,6 +56,28 @@ store.post = (args: { member: number | { id: number } } | [member: number | { id
     url: store.url(args, options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Admin\TopupController::store
+* @see app/Http/Controllers/Admin/TopupController.php:36
+* @route '/members/{member}/topups'
+*/
+const storeForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: store.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\TopupController::store
+* @see app/Http/Controllers/Admin/TopupController.php:36
+* @route '/members/{member}/topups'
+*/
+storeForm.post = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: store.url(args, options),
+    method: 'post',
+})
+
+store.form = storeForm
 
 const topups = {
     store: Object.assign(store, store),

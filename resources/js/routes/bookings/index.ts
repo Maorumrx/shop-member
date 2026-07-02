@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\Admin\BookingController::index
 * @see app/Http/Controllers/Admin/BookingController.php:58
@@ -44,6 +44,43 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
 /**
+* @see \App\Http\Controllers\Admin\BookingController::index
+* @see app/Http/Controllers/Admin/BookingController.php:58
+* @route '/bookings'
+*/
+const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: index.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\BookingController::index
+* @see app/Http/Controllers/Admin/BookingController.php:58
+* @route '/bookings'
+*/
+indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: index.url(options),
+    method: 'get',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\BookingController::index
+* @see app/Http/Controllers/Admin/BookingController.php:58
+* @route '/bookings'
+*/
+indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: index.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+index.form = indexForm
+
+/**
 * @see \App\Http\Controllers\Admin\BookingController::store
 * @see app/Http/Controllers/Admin/BookingController.php:92
 * @route '/bookings'
@@ -76,6 +113,28 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     url: store.url(options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Admin\BookingController::store
+* @see app/Http/Controllers/Admin/BookingController.php:92
+* @route '/bookings'
+*/
+const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: store.url(options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\BookingController::store
+* @see app/Http/Controllers/Admin/BookingController.php:92
+* @route '/bookings'
+*/
+storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: store.url(options),
+    method: 'post',
+})
+
+store.form = storeForm
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::checkIn
@@ -136,6 +195,28 @@ checkIn.post = (args: { booking: number | { id: number } } | [booking: number | 
 })
 
 /**
+* @see \App\Http\Controllers\Admin\BookingController::checkIn
+* @see app/Http/Controllers/Admin/BookingController.php:133
+* @route '/bookings/{booking}/check-in'
+*/
+const checkInForm = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: checkIn.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\BookingController::checkIn
+* @see app/Http/Controllers/Admin/BookingController.php:133
+* @route '/bookings/{booking}/check-in'
+*/
+checkInForm.post = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: checkIn.url(args, options),
+    method: 'post',
+})
+
+checkIn.form = checkInForm
+
+/**
 * @see \App\Http\Controllers\Admin\BookingController::noShow
 * @see app/Http/Controllers/Admin/BookingController.php:179
 * @route '/bookings/{booking}/no-show'
@@ -194,6 +275,28 @@ noShow.post = (args: { booking: number | { id: number } } | [booking: number | {
 })
 
 /**
+* @see \App\Http\Controllers\Admin\BookingController::noShow
+* @see app/Http/Controllers/Admin/BookingController.php:179
+* @route '/bookings/{booking}/no-show'
+*/
+const noShowForm = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: noShow.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\BookingController::noShow
+* @see app/Http/Controllers/Admin/BookingController.php:179
+* @route '/bookings/{booking}/no-show'
+*/
+noShowForm.post = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: noShow.url(args, options),
+    method: 'post',
+})
+
+noShow.form = noShowForm
+
+/**
 * @see \App\Http\Controllers\Admin\BookingController::cancel
 * @see app/Http/Controllers/Admin/BookingController.php:201
 * @route '/bookings/{booking}'
@@ -250,6 +353,38 @@ cancel.delete = (args: { booking: number | { id: number } } | [booking: number |
     url: cancel.url(args, options),
     method: 'delete',
 })
+
+/**
+* @see \App\Http\Controllers\Admin\BookingController::cancel
+* @see app/Http/Controllers/Admin/BookingController.php:201
+* @route '/bookings/{booking}'
+*/
+const cancelForm = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: cancel.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\BookingController::cancel
+* @see app/Http/Controllers/Admin/BookingController.php:201
+* @route '/bookings/{booking}'
+*/
+cancelForm.delete = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: cancel.url(args, {
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'DELETE',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'post',
+})
+
+cancel.form = cancelForm
 
 const bookings = {
     index: Object.assign(index, index),

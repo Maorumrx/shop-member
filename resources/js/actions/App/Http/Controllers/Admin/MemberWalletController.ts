@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Admin\MemberWalletController::adjust
 * @see app/Http/Controllers/Admin/MemberWalletController.php:114
@@ -56,6 +56,28 @@ adjust.post = (args: { member: number | { id: number } } | [member: number | { i
     url: adjust.url(args, options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Admin\MemberWalletController::adjust
+* @see app/Http/Controllers/Admin/MemberWalletController.php:114
+* @route '/members/{member}/wallet/adjust'
+*/
+const adjustForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: adjust.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberWalletController::adjust
+* @see app/Http/Controllers/Admin/MemberWalletController.php:114
+* @route '/members/{member}/wallet/adjust'
+*/
+adjustForm.post = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: adjust.url(args, options),
+    method: 'post',
+})
+
+adjust.form = adjustForm
 
 /**
 * @see \App\Http\Controllers\Admin\MemberWalletController::charge
@@ -116,6 +138,28 @@ charge.post = (args: { member: number | { id: number } } | [member: number | { i
 })
 
 /**
+* @see \App\Http\Controllers\Admin\MemberWalletController::charge
+* @see app/Http/Controllers/Admin/MemberWalletController.php:41
+* @route '/members/{member}/wallet/charge'
+*/
+const chargeForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: charge.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberWalletController::charge
+* @see app/Http/Controllers/Admin/MemberWalletController.php:41
+* @route '/members/{member}/wallet/charge'
+*/
+chargeForm.post = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: charge.url(args, options),
+    method: 'post',
+})
+
+charge.form = chargeForm
+
+/**
 * @see \App\Http\Controllers\Admin\MemberWalletController::refund
 * @see app/Http/Controllers/Admin/MemberWalletController.php:85
 * @route '/members/{member}/wallet/refund'
@@ -172,6 +216,28 @@ refund.post = (args: { member: number | { id: number } } | [member: number | { i
     url: refund.url(args, options),
     method: 'post',
 })
+
+/**
+* @see \App\Http\Controllers\Admin\MemberWalletController::refund
+* @see app/Http/Controllers/Admin/MemberWalletController.php:85
+* @route '/members/{member}/wallet/refund'
+*/
+const refundForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: refund.url(args, options),
+    method: 'post',
+})
+
+/**
+* @see \App\Http\Controllers\Admin\MemberWalletController::refund
+* @see app/Http/Controllers/Admin/MemberWalletController.php:85
+* @route '/members/{member}/wallet/refund'
+*/
+refundForm.post = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+    action: refund.url(args, options),
+    method: 'post',
+})
+
+refund.form = refundForm
 
 const MemberWalletController = { adjust, charge, refund }
 
