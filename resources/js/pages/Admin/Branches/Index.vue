@@ -178,8 +178,8 @@ function submitBooking(): void {
             </Button>
         </div>
 
-        <div class="overflow-hidden rounded-xl border border-border">
-            <table class="w-full text-sm">
+        <div class="overflow-x-auto rounded-xl border border-border">
+            <table class="w-full min-w-[40rem] text-sm">
                 <thead class="bg-muted/50 text-left text-muted-foreground">
                     <tr>
                         <th class="px-4 py-3 font-medium">ชื่อสาขา</th>
@@ -392,7 +392,7 @@ function submitBooking(): void {
                     </div>
                     <InputError :message="bookingForm.errors.is_bookable" />
 
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div class="grid grid-cols-1 gap-4">
                         <div class="grid gap-2">
                             <Label for="booking-open">เวลาเปิด</Label>
                             <Input
