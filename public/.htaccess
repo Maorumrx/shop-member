@@ -3,8 +3,14 @@
         Options -MultiViews -Indexes
     </IfModule>
 
-    RewriteEngine On
+    # Serve Laravel's front controller directly so a stray Plesk
+    # placeholder index.html can never take precedence over index.php.
+    <IfModule mod_dir.c>
+        DirectoryIndex index.php
+    </IfModule>
 
+    RewriteEngine On
+    
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
