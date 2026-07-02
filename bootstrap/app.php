@@ -37,19 +37,19 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Trust ONLY the two explicit production hosts, rejecting requests with a
         // spoofed/absolute Host header (cache-poisoning, password-reset host
-        // injection). Registered ONLY in production so the TrustHosts middleware is
-        // never even wired up in local/staging/CI — it therefore can NOT 400 local
-        // dev, `*.test`, or CI hosts. (Laravel also skips host enforcement in `local`
-        // and during unit tests by default, so this is belt-and-braces.)
+        // injection). Registered unconditionally: Laravel's TrustHosts already
+        // skips host enforcement in `local` and during unit tests, so it never
+        // 400s local dev, `*.test`, or CI. Do NOT gate this on
+        // app()->environment() — this withMiddleware closure runs while the Kernel
+        // is resolved, BEFORE the container binds `env`, so calling environment()
+        // here throws "Target class [env] does not exist".
         // `subdomains: false` — `www` is listed explicitly; we deliberately do NOT
         // trust all `*.bansuan-thaimassage.com` (a takeover-able subdomain CNAME
         // would otherwise inherit host trust).
-        if (app()->environment('production')) {
-            $middleware->trustHosts(
-                at: ['bansuan-thaimassage.com', 'www.bansuan-thaimassage.com'],
-                subdomains: false,
-            );
-        }
+        $middleware->trustHosts(
+            at: ['bansuan-thaimassage.com', 'www.bansuan-thaimassage.com'],
+            subdomains: false,
+        );
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
