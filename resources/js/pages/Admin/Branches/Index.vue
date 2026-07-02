@@ -392,13 +392,14 @@ function submitBooking(): void {
                     </div>
                     <InputError :message="bookingForm.errors.is_bookable" />
 
-                    <div class="grid grid-cols-1 gap-4">
+                    <div class="grid grid-cols-2 gap-4">
                         <div class="grid gap-2">
                             <Label for="booking-open">เวลาเปิด</Label>
                             <Input
                                 id="booking-open"
                                 v-model="bookingForm.open_time"
                                 type="time"
+                                class="appearance-none [&::-webkit-date-and-time-value]:text-left"
                             />
                             <InputError :message="bookingForm.errors.open_time" />
                         </div>
@@ -408,6 +409,7 @@ function submitBooking(): void {
                                 id="booking-close"
                                 v-model="bookingForm.close_time"
                                 type="time"
+                                class="appearance-none [&::-webkit-date-and-time-value]:text-left"
                             />
                             <InputError
                                 :message="bookingForm.errors.close_time"
