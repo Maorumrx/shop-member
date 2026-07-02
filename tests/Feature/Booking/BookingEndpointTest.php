@@ -2,44 +2,37 @@
 
 declare(strict_types=1);
 
-// Phase 7 — Booking HTTP surfaces (docs/phase7-booking-design.md §6–§8):
+// Booking HTTP surfaces (docs/phase7-booking-design.md §6–§8), reframed for the credit
+// WALLET (check-in DEBITS the wallet via WalletService):
 //   MEMBER (routes/member.php, behind `auth:members`):
 //     - member.bookings.index/availability/store/cancel — every action is FOR the
-//       authenticated member ($request->user('members')); a member may cancel their
-//       OWN booking but NEVER another member's (own-only 403 guard).
-//     - availability returns JSON `{ slots: [...] }`.
-//     - a guest (no members session) is redirected away.
+//       authenticated member; a member may cancel their OWN booking but NEVER another's.
+//     - availability returns JSON `{ slots: [...] }`; a guest is redirected away.
 //   ADMIN (routes/admin.php, behind ['auth','verified','role:owner,staff']):
 //     - a guest is redirected to login; a members-guard session cannot reach it
-//       ([302,403]-tolerant — cf. RedemptionEndpointTest's members-guard gotcha).
-//     - staff check-in / no-show / cancel work; branch scoping is enforced where
-//       the controller enforces it (staff pinned to their home branch → 403 on
-//       another branch's booking; an owner is unscoped).
+//       ([302,403]-tolerant).
+//     - staff check-in DEBITS the wallet (credit_ledger row carries booking_id +
+//       staff_id) and completes; insufficient balance leaves the booking confirmed with
+//       ZERO debit rows. no-show / cancel transitions. Branch scoping is enforced
+//       (staff pinned to home branch → 403 on another branch's booking; owner unscoped).
 //
-// Flash is Inertia::flash('toast', ...); success is asserted via redirect + DB
-// state (never JS build). booking_id / staff_id on entitlement_ledger are FKs — we
-// only ever use REAL User ids and REAL Booking ids.
-//
-// TIME: the app aliases Date→CarbonImmutable. We $this->travelTo() a fixed weekday
-// mid-morning so grid-aligned FUTURE slots are deterministic.
-//
-// sqlite caveat: DB-level CHECK constraints (chk_bookings_origin) and true row-lock
-// concurrency are MariaDB-only and are NOT exercised here.
+// Flash is Inertia::flash('toast', ...); success is asserted via redirect + DB state.
+// Wallet credit is seeded ONLY via WalletService::topUp. TIME: travelTo() a fixed
+// weekday mid-morning so grid-aligned FUTURE slots are deterministic.
 
 use App\Enums\BookingOrigin;
 use App\Enums\BookingStatus;
-use App\Enums\EntitlementStatus;
-use App\Enums\ItemType;
-use App\Enums\LedgerReason;
+use App\Enums\CreditLedgerReason;
+use App\Enums\CreditSource;
 use App\Enums\UserRole;
 use App\Models\Booking;
 use App\Models\Branch;
 use App\Models\BranchBookingSetting;
-use App\Models\Entitlement;
-use App\Models\EntitlementLedger;
+use App\Models\CreditLedger;
 use App\Models\Member;
-use App\Models\MemberPackage;
+use App\Models\Service;
 use App\Models\User;
+use App\Services\Wallet\WalletService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -101,49 +94,28 @@ function endpointUser(UserRole $role, ?int $branchId = null): User
     return $user;
 }
 
-/** Mint a redeemable lot so a check-in has balance to consume. */
-function endpointLot(Member $member, string $itemCode, int $qty, ?int $branchId = null): MemberPackage
+/** An active priced service the check-in debit resolves. */
+function endpointService(string $itemCode = 'MASSAGE_60', string $price = '300.00'): Service
 {
-    $lot = MemberPackage::create([
-        'member_id' => $member->id,
-        'package_id' => null,
-        'branch_id' => $branchId,
-        'purchased_at' => now(),
-        'expires_at' => now()->addDays(60),
-        'price_paid' => '0.00',
-        'status' => EntitlementStatus::Active,
-    ]);
-
-    $ent = Entitlement::create([
-        'member_package_id' => $lot->id,
-        'member_id' => $member->id,
+    return Service::create([
         'item_code' => $itemCode,
-        'item_name' => $itemCode,
-        'item_type' => ItemType::Service,
-        'qty_total' => $qty,
-        'qty_remaining' => $qty,
-        'redeem_group' => null,
-        'expires_at' => now()->addDays(60),
-        'status' => EntitlementStatus::Active,
+        'name' => 'Thai Massage 60',
+        'price' => $price,
+        'branch_id' => null,
+        'is_active' => true,
     ]);
+}
 
-    $ent->ledgerEntries()->create([
-        'member_id' => $member->id,
-        'delta' => $qty,
-        'reason' => LedgerReason::Purchase,
-        'balance_after' => $qty,
-        'booking_id' => null,
-        'staff_id' => null,
-        'note' => null,
-    ]);
-
-    return $lot;
+/** Seed spendable wallet credit honestly (via the money authority). */
+function endpointCredit(Member $member, string $paid): void
+{
+    app(WalletService::class)->topUp($member, $paid, '0.00', CreditSource::Topup, null);
 }
 
 /**
- * Persist a confirmed booking directly (bypassing the service) so lifecycle
- * endpoints have a live row to act on. created_via/created_by are consistent with
- * the origin CHECK (member ⇒ null, staff ⇒ a real user id).
+ * Persist a confirmed booking directly (bypassing the service) so lifecycle endpoints
+ * have a live row to act on. created_via/created_by are consistent with the origin
+ * (member ⇒ null, staff ⇒ a real user id).
  */
 function endpointBooking(
     Member $member,
@@ -246,7 +218,6 @@ it('lets a member cancel their OWN confirmed booking', function () {
         ->assertRedirect(route('member.bookings.index'));
 
     expect($booking->fresh()->status)->toBe(BookingStatus::Cancelled);
-    // Member self-cancel — no acting user recorded.
     expect($booking->fresh()->cancelled_by_user_id)->toBeNull();
 });
 
@@ -258,13 +229,10 @@ it('does NOT let a member cancel ANOTHER member booking', function () {
     $other = endpointMember(['phone' => '0860000002']);
     $booking = endpointBooking($owner, $branch->id, endpointSlot());
 
-    // `other` tries to cancel `owner`'s booking → own-only 403 (302|403 tolerant).
     $response = $this->actingAs($other, 'members')
         ->delete(route('member.bookings.cancel', $booking));
 
     expect(in_array($response->status(), [302, 403], true))->toBeTrue();
-
-    // The victim's booking is untouched.
     expect($booking->fresh()->status)->toBe(BookingStatus::Confirmed);
 });
 
@@ -277,10 +245,6 @@ it('redirects a guest to login from the admin booking index', function () {
 });
 
 it('does not let a members-guard session reach the admin booking index', function () {
-    // A members-guard session must NOT reach the admin surface. In tests
-    // actingAs($member,'members') also makes `members` the DEFAULT guard, so the
-    // admin `auth` sees an authenticated principal and the role gate 403s — a real
-    // web session would redirect to login. Either way it's blocked; tolerate 302|403.
     $member = endpointMember();
 
     $response = $this->actingAs($member, 'members')->get(route('bookings.index'));
@@ -343,11 +307,12 @@ it('rejects a staff booking for an inactive member with a validation error', fun
     $this->assertDatabaseCount('bookings', 0);
 });
 
-it('lets staff check in a confirmed booking: redemption runs, ledger carries booking_id, completes', function () {
+it('lets staff check in a confirmed booking: wallet debited, ledger carries booking_id, completes', function () {
     $branch = endpointBranch();
     endpointSettings($branch->id);
     $member = endpointMember();
-    endpointLot($member, 'MASSAGE_60', 5);
+    endpointService('MASSAGE_60', '300.00');
+    endpointCredit($member, '1000.00');
     $staff = endpointUser(UserRole::Staff, $branch->id);
     $booking = endpointBooking($member, $branch->id, endpointSlot());
 
@@ -356,18 +321,20 @@ it('lets staff check in a confirmed booking: redemption runs, ledger carries boo
         ->assertRedirect(); // back()
 
     expect($booking->fresh()->status)->toBe(BookingStatus::Completed);
-    expect(Entitlement::where('item_code', 'MASSAGE_60')->sole()->qty_remaining)->toBe(4);
+    expect(app(WalletService::class)->balance($member))->toBe('700.00');
 
-    $redeem = EntitlementLedger::where('reason', LedgerReason::Redeem)->sole();
-    expect($redeem->booking_id)->toBe($booking->id);
-    expect($redeem->staff_id)->toBe($staff->id);
+    $debit = CreditLedger::query()->where('reason', CreditLedgerReason::Debit)->sole();
+    expect($debit->booking_id)->toBe($booking->id);
+    expect($debit->staff_id)->toBe($staff->id);
+    expect($debit->delta)->toBe('-300.00');
 });
 
 it('surfaces insufficient balance on check-in as an error and leaves the booking confirmed', function () {
     $branch = endpointBranch();
     endpointSettings($branch->id);
     $member = endpointMember();
-    // No lot → redemption throws; the controller catches RedemptionException.
+    endpointService('MASSAGE_60', '300.00');
+    // No credit → the wallet debit throws; the controller catches it.
     $staff = endpointUser(UserRole::Staff, $branch->id);
     $booking = endpointBooking($member, $branch->id, endpointSlot());
 
@@ -376,7 +343,7 @@ it('surfaces insufficient balance on check-in as an error and leaves the booking
         ->assertRedirect(); // back() with an error toast
 
     expect($booking->fresh()->status)->toBe(BookingStatus::Confirmed);
-    expect(EntitlementLedger::where('reason', LedgerReason::Redeem)->count())->toBe(0);
+    expect(CreditLedger::query()->where('reason', CreditLedgerReason::Debit)->count())->toBe(0);
 });
 
 it('lets staff mark a confirmed booking as no_show', function () {
@@ -415,9 +382,9 @@ it('branch-scopes staff: cannot check in a booking at ANOTHER branch (403)', fun
     endpointSettings($branchB->id);
 
     $member = endpointMember();
-    endpointLot($member, 'MASSAGE_60', 5);
+    endpointService('MASSAGE_60', '300.00');
+    endpointCredit($member, '1000.00');
 
-    // Staff whose home branch is A tries to act on a booking AT branch B.
     $staffA = endpointUser(UserRole::Staff, $branchA->id);
     $bookingB = endpointBooking($member, $branchB->id, endpointSlot());
 
@@ -425,9 +392,9 @@ it('branch-scopes staff: cannot check in a booking at ANOTHER branch (403)', fun
 
     expect(in_array($response->status(), [302, 403], true))->toBeTrue();
 
-    // Nothing consumed, booking untouched.
+    // Nothing debited, booking untouched.
     expect($bookingB->fresh()->status)->toBe(BookingStatus::Confirmed);
-    expect(EntitlementLedger::where('reason', LedgerReason::Redeem)->count())->toBe(0);
+    expect(CreditLedger::query()->where('reason', CreditLedgerReason::Debit)->count())->toBe(0);
 });
 
 it('lets an owner (unscoped) check in a booking at any branch', function () {
@@ -437,9 +404,9 @@ it('lets an owner (unscoped) check in a booking at any branch', function () {
     endpointSettings($branchB->id);
 
     $member = endpointMember();
-    endpointLot($member, 'MASSAGE_60', 5);
+    endpointService('MASSAGE_60', '300.00');
+    endpointCredit($member, '1000.00');
 
-    // Owner has branch_id null → unscoped → may act on branch B.
     $owner = endpointUser(UserRole::Owner);
     $bookingB = endpointBooking($member, $branchB->id, endpointSlot());
 
@@ -448,5 +415,5 @@ it('lets an owner (unscoped) check in a booking at any branch', function () {
         ->assertRedirect();
 
     expect($bookingB->fresh()->status)->toBe(BookingStatus::Completed);
-    expect(Entitlement::where('item_code', 'MASSAGE_60')->sole()->qty_remaining)->toBe(4);
+    expect(app(WalletService::class)->balance($member))->toBe('700.00');
 });

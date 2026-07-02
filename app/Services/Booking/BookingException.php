@@ -22,7 +22,7 @@ use RuntimeException;
  * genuinely full at commit time — no booking row was written.
  *
  * Controllers catch this and surface a clean Thai error toast (never a 500),
- * mirroring how {@see \App\Exceptions\RedemptionException} is handled.
+ * mirroring how {@see \App\Exceptions\WalletException} is handled.
  *
  * @see BookingService
  */

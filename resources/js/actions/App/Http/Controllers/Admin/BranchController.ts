@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Admin\BranchController::index
 * @see app/Http/Controllers/Admin/BranchController.php:33
@@ -44,43 +44,6 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
 /**
-* @see \App\Http\Controllers\Admin\BranchController::index
-* @see app/Http/Controllers/Admin/BranchController.php:33
-* @route '/branches'
-*/
-const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url(options),
-    method: 'get',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::index
-* @see app/Http/Controllers/Admin/BranchController.php:33
-* @route '/branches'
-*/
-indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url(options),
-    method: 'get',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::index
-* @see app/Http/Controllers/Admin/BranchController.php:33
-* @route '/branches'
-*/
-indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url({
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'HEAD',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'get',
-})
-
-index.form = indexForm
-
-/**
 * @see \App\Http\Controllers\Admin\BranchController::store
 * @see app/Http/Controllers/Admin/BranchController.php:58
 * @route '/branches'
@@ -113,28 +76,6 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     url: store.url(options),
     method: 'post',
 })
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::store
-* @see app/Http/Controllers/Admin/BranchController.php:58
-* @route '/branches'
-*/
-const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: store.url(options),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::store
-* @see app/Http/Controllers/Admin/BranchController.php:58
-* @route '/branches'
-*/
-storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: store.url(options),
-    method: 'post',
-})
-
-store.form = storeForm
 
 /**
 * @see \App\Http\Controllers\Admin\BranchController::update
@@ -195,38 +136,6 @@ update.put = (args: { branch: number | { id: number } } | [branch: number | { id
 })
 
 /**
-* @see \App\Http\Controllers\Admin\BranchController::update
-* @see app/Http/Controllers/Admin/BranchController.php:67
-* @route '/branches/{branch}'
-*/
-const updateForm = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: update.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'PUT',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::update
-* @see app/Http/Controllers/Admin/BranchController.php:67
-* @route '/branches/{branch}'
-*/
-updateForm.put = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: update.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'PUT',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-update.form = updateForm
-
-/**
 * @see \App\Http\Controllers\Admin\BranchController::destroy
 * @see app/Http/Controllers/Admin/BranchController.php:82
 * @route '/branches/{branch}'
@@ -283,38 +192,6 @@ destroy.delete = (args: { branch: number | { id: number } } | [branch: number | 
     url: destroy.url(args, options),
     method: 'delete',
 })
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::destroy
-* @see app/Http/Controllers/Admin/BranchController.php:82
-* @route '/branches/{branch}'
-*/
-const destroyForm = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: destroy.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'DELETE',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::destroy
-* @see app/Http/Controllers/Admin/BranchController.php:82
-* @route '/branches/{branch}'
-*/
-destroyForm.delete = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: destroy.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'DELETE',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-destroy.form = destroyForm
 
 /**
 * @see \App\Http\Controllers\Admin\BranchController::toggle
@@ -375,38 +252,6 @@ toggle.patch = (args: { branch: number | { id: number } } | [branch: number | { 
 })
 
 /**
-* @see \App\Http\Controllers\Admin\BranchController::toggle
-* @see app/Http/Controllers/Admin/BranchController.php:105
-* @route '/branches/{branch}/toggle'
-*/
-const toggleForm = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: toggle.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'PATCH',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::toggle
-* @see app/Http/Controllers/Admin/BranchController.php:105
-* @route '/branches/{branch}/toggle'
-*/
-toggleForm.patch = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: toggle.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'PATCH',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-toggle.form = toggleForm
-
-/**
 * @see \App\Http\Controllers\Admin\BranchController::updateBookingSettings
 * @see app/Http/Controllers/Admin/BranchController.php:127
 * @route '/branches/{branch}/booking-settings'
@@ -463,38 +308,6 @@ updateBookingSettings.put = (args: { branch: number | { id: number } } | [branch
     url: updateBookingSettings.url(args, options),
     method: 'put',
 })
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::updateBookingSettings
-* @see app/Http/Controllers/Admin/BranchController.php:127
-* @route '/branches/{branch}/booking-settings'
-*/
-const updateBookingSettingsForm = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: updateBookingSettings.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'PUT',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::updateBookingSettings
-* @see app/Http/Controllers/Admin/BranchController.php:127
-* @route '/branches/{branch}/booking-settings'
-*/
-updateBookingSettingsForm.put = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: updateBookingSettings.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'PUT',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-updateBookingSettings.form = updateBookingSettingsForm
 
 const BranchController = { index, store, update, destroy, toggle, updateBookingSettings }
 

@@ -10,9 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
- * Branch (architecture.md §3.1) — physical shop and the scoping unit for
- * redemption eligibility (§5.5). Mutable reference data; toggled off via
- * `is_active` rather than deleted (packages bound to a branch RESTRICT delete).
+ * Branch (architecture.md §3.1) — physical shop and the scoping unit for the
+ * wallet/booking context (§5.5). Mutable reference data; toggled off via
+ * `is_active` rather than deleted (bookings on a branch RESTRICT delete).
  *
  * @property int $id
  * @property string $name
@@ -40,8 +40,8 @@ class Branch extends Model
 
     /**
      * Scope to active branches only (`is_active = true`). Used by the catalog
-     * admin to populate branch pickers (Package create/edit) — inactive
-     * branches stay selectable on existing packages but aren't offered for new
+     * admin to populate branch pickers (Service create/edit) — inactive
+     * branches stay selectable on existing services but aren't offered for new
      * scoping (architecture.md §3.1, §3.4).
      *
      * @param  Builder<Branch>  $query
@@ -50,27 +50,6 @@ class Branch extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
-    }
-
-    /**
-     * Catalog packages scoped to this branch (`packages.branch_id`).
-     * A null `branch_id` package is any-branch and is NOT returned here (§3.4).
-     *
-     * @return HasMany<Package, $this>
-     */
-    public function packages(): HasMany
-    {
-        return $this->hasMany(Package::class);
-    }
-
-    /**
-     * Owned lots whose redemption scope was snapshotted to this branch (§3.6).
-     *
-     * @return HasMany<MemberPackage, $this>
-     */
-    public function memberPackages(): HasMany
-    {
-        return $this->hasMany(MemberPackage::class);
     }
 
     /**
@@ -116,5 +95,27 @@ class Branch extends Model
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
+    }
+
+    /**
+     * Price-list services scoped to this branch (`services.branch_id`). A null
+     * `branch_id` service is any-branch and is NOT returned here.
+     *
+     * @return HasMany<Service, $this>
+     */
+    public function services(): HasMany
+    {
+        return $this->hasMany(Service::class);
+    }
+
+    /**
+     * Credit-wallet lots whose top-up branch was snapshotted to this one
+     * (`credit_lots.branch_id`). SET NULL on delete (lot becomes any-branch).
+     *
+     * @return HasMany<CreditLot, $this>
+     */
+    public function creditLots(): HasMany
+    {
+        return $this->hasMany(CreditLot::class);
     }
 }

@@ -16,10 +16,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * Booking (docs/phase7-booking-design.md §3.2) — a member's reservation of a
  * branch time-slot for an intended service. Scheduling data, NOT financial: it
- * holds NO entitlement and writes NO ledger row on create. Redemption runs at
- * CHECK-IN via {@see \App\Services\Redemption\RedemptionService}, which stamps
- * the resulting ledger rows with this booking's id — so a completed booking's
- * consumption is exactly `entitlement_ledger WHERE booking_id = ?` (§7).
+ * holds NO credit and writes NO ledger row on create. The wallet is charged at
+ * CHECK-IN via {@see \App\Services\Wallet\WalletService}, which stamps the
+ * resulting credit_ledger rows with this booking's id — so a completed booking's
+ * consumption is exactly `credit_ledger WHERE booking_id = ?` (§7).
  *
  * v1 AUTO-CONFIRM (client decision): a booking is created directly as
  * `confirmed`; there is no `pending` and no `confirmed_*` audit pair — `created_at`
@@ -134,18 +134,18 @@ class Booking extends Model
     }
 
     /**
-     * The ledger rows this booking consumed at check-in (soft edge via
-     * `entitlement_ledger.booking_id`, index I19). Zero rows until check-in;
-     * a service + its coupled `redeem_group` add-ons share this booking_id (§7).
+     * The credit-ledger rows this booking's check-in debit produced (soft edge via
+     * `credit_ledger.booking_id`). Zero rows until check-in; one row per credit_lot
+     * the charge walked (FIFO), all sharing this booking_id (§7).
      *
      * N+1: eager-load with `Booking::with('ledgerEntries')` when rendering
      * "what did this booking consume".
      *
-     * @return HasMany<EntitlementLedger, $this>
+     * @return HasMany<CreditLedger, $this>
      */
     public function ledgerEntries(): HasMany
     {
-        return $this->hasMany(EntitlementLedger::class, 'booking_id');
+        return $this->hasMany(CreditLedger::class, 'booking_id');
     }
 
     /**

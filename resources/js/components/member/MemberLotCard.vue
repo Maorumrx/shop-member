@@ -1,40 +1,50 @@
 <script setup lang="ts">
 /**
- * MemberLotCard — one owned lot (a purchase) with its items. Header carries the
- * package name + purchased/expiry dates; the body lists each item with a thin
- * remaining/total progress bar.
+ * MemberLotCard — one credit lot (a top-up or an owner adjustment). Header shows
+ * where the credit came from + the purchased date; the body shows the total
+ * remaining in baht with a thin fill bar and the เงินสด / โบนัส split.
  *
  * State cues (a11y — color always paired with icon + label via MemberStateBadge):
- * - expires_at === null → a "never-expires" badge.
- * - is_near_expiry      → a "near-expiry" badge PLUS a slim WARNING left accent
- *   bar (badge + bar; we do NOT flood the whole card — near-expiry is WARNING,
- *   not DANGER).
- * Only ACTIVE lots reach here (backend filter), so there are no expired/used-up
- * whole-lot states — item-level 0-remaining just shows an empty accent bar.
+ * - is_near_expiry → a "near-expiry" badge PLUS a slim WARNING left accent bar.
+ * Expiry is shown ONLY when set (`expires_at !== null`); the wallet ships lots
+ * with no expiry by default, so most lots show no expiry line at all.
  *
- * Motion: each progress bar animates width 0 → target on mount (`--fill` custom
- * property drives the keyframe); reduced-motion snaps to full width.
+ * Only ACTIVE lots reach here (backend filter). Motion: the fill bar animates
+ * 0 → target on mount; reduced-motion snaps to the final width.
  */
 import { computed } from 'vue';
 import MemberStateBadge from '@/components/member/MemberStateBadge.vue';
+import { formatBaht } from '@/lib/money';
 import { formatThaiDate } from '@/lib/thai';
-import type { MemberLot } from '@/types/members';
+import type { CreditSource, WalletLot } from '@/types/members';
 
 const props = defineProps<{
-    lot: MemberLot;
+    lot: WalletLot;
 }>();
 
-/** Package name fallback — a lot can outlive its catalog package (SET NULL). */
-const packageName = computed(() => props.lot.package_name ?? 'แพ็กเกจ');
+const SOURCE_LABEL: Record<CreditSource, string> = {
+    topup: 'เติมเครดิต',
+    adjustment: 'เครดิตพิเศษ',
+};
 
-/** Fill ratio (0–1) for an item's remaining/total bar; guards divide-by-zero. */
-function fillRatio(remaining: number, total: number): number {
-    if (total <= 0) {
+const sourceLabel = computed(
+    () => SOURCE_LABEL[props.lot.source] ?? 'เครดิต',
+);
+
+/** Fill ratio (0–1) of total remaining vs the lot's original total. */
+const fillRatio = computed<number>(() => {
+    const original =
+        Number.parseFloat(props.lot.amount_paid) +
+        Number.parseFloat(props.lot.bonus_amount);
+
+    if (original <= 0) {
         return 0;
     }
 
-    return Math.min(Math.max(remaining / total, 0), 1);
-}
+    const remaining = Number.parseFloat(props.lot.total_remaining);
+
+    return Math.min(Math.max(remaining / original, 0), 1);
+});
 </script>
 
 <template>
@@ -48,73 +58,60 @@ function fillRatio(remaining: number, total: number): number {
             aria-hidden="true"
         />
 
-        <!-- Header: package name + dates + state badge. -->
+        <!-- Header: source + purchased date + optional near-expiry badge. -->
         <div class="flex flex-wrap items-start justify-between gap-2">
             <div class="flex flex-col gap-1">
                 <h3
                     class="font-heading text-base font-semibold text-[var(--color-ink)]"
                 >
-                    {{ packageName }}
+                    {{ sourceLabel }}
                 </h3>
                 <p class="text-xs text-[var(--color-ink-muted)]">
-                    ซื้อเมื่อ {{ formatThaiDate(lot.purchased_at) }}
+                    เติมเมื่อ {{ formatThaiDate(lot.purchased_at) }}
                     <template v-if="lot.expires_at">
                         · หมดอายุ {{ formatThaiDate(lot.expires_at) }}
                     </template>
                 </p>
             </div>
 
-            <MemberStateBadge
-                v-if="lot.expires_at === null"
-                state="never-expires"
-            />
-            <MemberStateBadge
-                v-else-if="lot.is_near_expiry"
-                state="near-expiry"
+            <MemberStateBadge v-if="lot.is_near_expiry" state="near-expiry" />
+        </div>
+
+        <!-- Total remaining + fill bar. -->
+        <div class="mt-4 flex items-end justify-between gap-3">
+            <p
+                class="font-heading text-2xl font-semibold text-[var(--color-ink)] tabular-nums"
+            >
+                {{ formatBaht(lot.total_remaining) }}
+            </p>
+            <span class="text-xs text-[var(--color-ink-muted)]">คงเหลือ</span>
+        </div>
+        <div
+            class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-member-border)]"
+        >
+            <span
+                class="member-bar block h-full rounded-full bg-[var(--color-member-accent)]"
+                :style="{ '--fill': `${fillRatio * 100}%` }"
             />
         </div>
 
-        <!-- Items: name + remaining/total + thin progress bar. -->
-        <ul class="mt-4 flex flex-col gap-3">
-            <li
-                v-for="(item, i) in lot.items"
-                :key="`${item.item_name}-${i}`"
-                class="flex flex-col gap-1.5"
-            >
-                <div class="flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm text-[var(--color-ink)]">
-                            {{ item.item_name }}
-                        </span>
-                        <MemberStateBadge
-                            v-if="item.item_type === 'addon'"
-                            state="addon"
-                        />
-                    </div>
-                    <span class="text-sm tabular-nums">
-                        <span class="font-heading font-semibold text-[var(--color-ink)]">
-                            {{ item.qty_remaining }}
-                        </span>
-                        <span class="text-[var(--color-ink-muted)]">
-                            / {{ item.qty_total }}
-                        </span>
-                    </span>
-                </div>
-                <div
-                    class="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-member-border)]"
-                >
-                    <span
-                        class="member-bar block h-full rounded-full bg-[var(--color-member-accent)]"
-                        :style="{
-                            '--fill': `${
-                                fillRatio(item.qty_remaining, item.qty_total) *
-                                100
-                            }%`,
-                        }"
-                    />
-                </div>
-            </li>
-        </ul>
+        <!-- เงินสด / โบนัส split. -->
+        <div
+            class="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-[var(--color-ink-muted)]"
+        >
+            <span>
+                เงินสด
+                <span class="font-medium text-[var(--color-ink)] tabular-nums">
+                    {{ formatBaht(lot.paid_remaining) }}
+                </span>
+            </span>
+            <span>
+                โบนัส
+                <span class="font-medium text-[var(--color-ink)] tabular-nums">
+                    {{ formatBaht(lot.bonus_remaining) }}
+                </span>
+            </span>
+        </div>
     </article>
 </template>
 

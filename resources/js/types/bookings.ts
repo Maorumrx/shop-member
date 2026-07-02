@@ -34,10 +34,15 @@ export type BookingBranch = {
     slot_capacity?: number;
 };
 
-/** A bookable service option (from the branch's catalog). */
+/**
+ * A bookable service option (from the branch's catalog). Carries the baht `price`
+ * (decimal-2 STRING) debited from the member's wallet at check-in; shown in the
+ * picker so staff/members see the cost up front.
+ */
 export type BookingService = {
     item_code: string;
     item_name: string;
+    price: string | number;
 };
 
 /**

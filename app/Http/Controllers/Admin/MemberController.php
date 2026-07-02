@@ -9,9 +9,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreMemberRequest;
 use App\Http\Requests\Admin\UpdateMemberRequest;
 use App\Models\Member;
-use App\Models\Package;
+use App\Models\Service;
+use App\Models\TopupOffer;
 use App\Services\Line\MemberLinkService;
-use App\Services\Member\MemberEntitlementQuery;
+use App\Services\Member\MemberWalletQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -116,12 +117,12 @@ class MemberController extends Controller
      * Generate a LINE claim code for an unlinked, active, non-deleted member
      * (docs/member-line-linking-design.md §4.2). Staff show the returned 6-digit
      * plaintext to the customer, who types it in LINE to attach their account to
-     * THIS counter member (keeping name/phone/packages).
+     * THIS counter member (keeping name/phone/credit balance).
      *
      * The plaintext code is returned ONCE (never stored) — flashed back as a
      * `linkCode` prop so the Members/Show page can display it (mirroring how the
-     * redemption breakdown is flashed by RedemptionController). Regenerating
-     * supersedes any live code inside one transaction (MemberLinkService::generate).
+     * wallet result is flashed by MemberWalletController). Regenerating supersedes
+     * any live code inside one transaction (MemberLinkService::generate).
      *
      * Blocked (flash error, back) if the member is already linked / inactive /
      * deleted — a {@see LinkException} from the service is surfaced as a clean toast
@@ -153,42 +154,42 @@ class MemberController extends Controller
     }
 
     /**
-     * Member detail: owned lots + their entitlements, an aggregate "remaining by
-     * type" balance summary, the active-package list so the page can sell, and the
-     * recent redemption/movement history so the operator sees what was deducted.
+     * Member detail: the single spendable wallet balance, the active credit lots
+     * (paid/bonus remaining), the sell/charge inputs (top-up presets + priced
+     * services), and the recent wallet-movement history so the operator sees every
+     * top-up/bonus/debit/refund/adjust.
      *
-     * N+1 guard: eager-load `memberPackages.entitlements` in ONE pass (§6.4) so
-     * the lots table renders every item without a query per lot. The balance
-     * summary is a SINGLE grouped query (NOT per-row hydration of the loaded
-     * collection) per the §6.4 aggregate guidance. The history feed eager-loads
-     * `staff` + `entitlement:id,item_name` so each row renders without a query per
-     * row (§6.4).
+     * The balance + lots + history projections come from the shared
+     * {@see MemberWalletQuery} (the SINGLE source of truth also used by the member
+     * dashboard). Admin passes `includeStaff: true` so the history keeps its
+     * `staff_name` column. Money is a decimal-2 STRING throughout (§5.6).
      *
-     * The balance + history projections come from the shared
-     * {@see MemberEntitlementQuery} (the SINGLE source of truth also used by the
-     * member dashboard, Phase 6). Admin passes `includeStaff: true` so the history
-     * keeps its `staff_name` column.
+     * N+1 guard: `activeLots` and the history feed are each a single query
+     * (history eager-loads `staff:id,name`); the sell/charge inputs are single
+     * scoped queries.
      */
-    public function show(Member $member, MemberEntitlementQuery $entitlements): Response
+    public function show(Member $member, MemberWalletQuery $wallet): Response
     {
-        // Lots newest-first, each with its entitlements (the snapshots + caches).
-        $member->load([
-            'memberPackages' => fn ($q) => $q->orderByDesc('id'),
-            'memberPackages.entitlements',
-        ]);
-
         return Inertia::render('Admin/Members/Show', [
             'member' => $member,
-            'balanceByType' => $entitlements->remainingByType($member->id),
-            // Active packages the Show page can sell (id, name, price). Price is
-            // the decimal:2 string default for the price_paid field on the form.
-            'activePackages' => Package::query()
+            // ONE spendable-balance figure now (decimal-2 string), not a per-type map.
+            'balance' => $wallet->balance($member),
+            // Active credit lots with paid/bonus/total remaining + near-expiry flag.
+            'lots' => $wallet->activeLots($member),
+            // Top-up presets for the sell form (id + amount/bonus, decimal-2 strings).
+            'topupOffers' => TopupOffer::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['id', 'name', 'amount', 'bonus']),
+            // Priced services for the manual-charge picker (item_code + name + price).
+            'services' => Service::query()
                 ->where('is_active', true)
                 ->orderBy('name')
-                ->get(['id', 'name', 'price']),
-            // Recent consumption history (redeem/expire/refund), newest first.
-            // Admin sees WHO performed each movement (staff_name).
-            'history' => $entitlements->recentHistory($member->id, includeStaff: true),
+                ->get(['item_code', 'name', 'price']),
+            // Recent wallet movements, newest first. Admin sees WHO performed each
+            // (staff_name); money fields (delta/balance_after) are STRINGS.
+            'history' => $wallet->recentHistory($member, includeStaff: true),
         ]);
     }
 }

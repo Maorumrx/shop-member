@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-// Phase 3 — Package Catalog admin (Branches + Packages). Owner-only access gate.
-// Routes live in routes/admin.php behind ['auth','verified','role:owner'] and are
-// loaded under the `web` group with NO uri prefix, so the paths are /branches and
-// /packages directly. EnsureUserRole 403s non-owners; `auth` redirects guests to
-// login. Inertia component assertions need no JS build (cf. MemberRouteAccessTest).
+// Catalog admin OWNER-ONLY access gate (the money-wallet reframe: the dropped
+// Packages catalog is now Services + Top-up offers). Routes live in routes/admin.php
+// behind ['auth','verified','role:owner'], loaded under `web` with NO uri prefix, so
+// the paths are /branches, /services, /topup-offers directly. EnsureUserRole 403s
+// non-owners; `auth` redirects guests to login. Inertia component assertions need no
+// JS build.
 
 use App\Enums\UserRole;
 use App\Models\User;
@@ -35,26 +36,15 @@ function catalogAccessStaff(): User
     ]);
 }
 
-it('redirects a guest from /branches to login', function () {
-    // `auth` runs first and bounces an unauthenticated request to login.
-    $this->get('/branches')->assertRedirect(route('login'));
-});
+it('redirects a guest to login for each catalog index', function (string $path) {
+    $this->get($path)->assertRedirect(route('login'));
+})->with(['/branches', '/services', '/topup-offers']);
 
-it('redirects a guest from /packages to login', function () {
-    $this->get('/packages')->assertRedirect(route('login'));
-});
-
-it('forbids a staff user on /branches with 403', function () {
+it('forbids a staff user on each owner-only catalog index (403)', function (string $path) {
     $this->actingAs(catalogAccessStaff())
-        ->get('/branches')
+        ->get($path)
         ->assertForbidden();
-});
-
-it('forbids a staff user on /packages with 403', function () {
-    $this->actingAs(catalogAccessStaff())
-        ->get('/packages')
-        ->assertForbidden();
-});
+})->with(['/branches', '/services', '/topup-offers']);
 
 it('lets an owner view the branches index (Inertia Admin/Branches/Index)', function () {
     $this->actingAs(catalogAccessOwner())
@@ -63,9 +53,16 @@ it('lets an owner view the branches index (Inertia Admin/Branches/Index)', funct
         ->assertInertia(fn (AssertableInertia $page) => $page->component('Admin/Branches/Index'));
 });
 
-it('lets an owner view the packages index (Inertia Admin/Packages/Index)', function () {
+it('lets an owner view the services index (Inertia Admin/Services/Index)', function () {
     $this->actingAs(catalogAccessOwner())
-        ->get('/packages')
+        ->get('/services')
         ->assertOk()
-        ->assertInertia(fn (AssertableInertia $page) => $page->component('Admin/Packages/Index'));
+        ->assertInertia(fn (AssertableInertia $page) => $page->component('Admin/Services/Index'));
+});
+
+it('lets an owner view the top-up offers index (Inertia Admin/TopupOffers/Index)', function () {
+    $this->actingAs(catalogAccessOwner())
+        ->get('/topup-offers')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->component('Admin/TopupOffers/Index'));
 });

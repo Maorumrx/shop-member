@@ -54,6 +54,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { formatBaht } from '@/lib/money';
 import {
     formatThaiDate,
     formatThaiDateTime,
@@ -396,7 +397,8 @@ function submitBehalf(): void {
                                 :key="service.item_code"
                                 :value="service.item_code"
                             >
-                                {{ service.item_name }}
+                                {{ service.item_name }} —
+                                {{ formatBaht(service.price) }}
                             </SelectItem>
                         </SelectContent>
                     </Select>

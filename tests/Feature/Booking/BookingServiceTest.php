@@ -2,63 +2,57 @@
 
 declare(strict_types=1);
 
-// Phase 7 — BookingService (the จองคิว scheduling core, docs/phase7-booking-design.md
-// §5–§8). Calls the service DIRECTLY (no HTTP) to prove the slot-grid + capacity +
-// lifecycle contract:
-//   - CAPACITY: confirmed+checked_in hold a chair; a slot full at slot_capacity
-//     rejects the next create (BookingException) and writes NO row.
+// BookingService (the จองคิว scheduling core, docs/phase7-booking-design.md §5–§8),
+// reframed for the credit WALLET: check-in now DEBITS the wallet via
+// WalletService::chargeService (the money-wallet reframe of the dropped
+// RedemptionService). Calls the service DIRECTLY (no HTTP) to prove:
+//   - CAPACITY: confirmed+checked_in hold a chair; a full slot rejects the next create
+//     (BookingException) and writes NO row.
 //   - VALIDATION: branch not bookable / slot in past / off open-hours / off-grid /
-//     beyond max_advance_days / inactive member / same-member same-slot duplicate
-//     each throw and write nothing.
-//   - HAPPY PATH: item_name snapshot, scheduled_end = start + slot_length, and the
-//     origin/created_by_user_id CHECK (member ⇒ null, staff ⇒ user id).
-//   - availableSlots: remaining = capacity − (confirmed+checked_in), is_full marking,
-//     past-today slots omitted, empty when the branch is not bookable.
-//   - checkIn: the MONEY path — redemption runs, ledger rows carry booking_id, the
-//     booking settles on `completed`; insufficient balance rolls the WHOLE txn back
-//     (booking stays confirmed, ZERO redeem rows, entitlement untouched).
-//   - cancel / no_show: cancel frees the slot; markNoShow flips confirmed→no_show.
+//     beyond max_advance_days / inactive member / same-member same-slot duplicate.
+//   - HAPPY PATH: item_name snapshot from the ACTIVE services catalog, derived end,
+//     origin/created_by_user_id (member ⇒ null, staff ⇒ user id).
+//   - availableSlots: remaining = capacity − (confirmed+checked_in), is_full, past-today
+//     omitted, empty when not bookable.
+//   - checkIn: the MONEY path — the wallet is debited at the service price, ONE
+//     credit_ledger row carries this booking_id, the booking settles on `completed`;
+//     an insufficient balance (or unpriced service) rolls the WHOLE txn back (booking
+//     stays confirmed, ZERO debit rows, wallet untouched).
+//   - cancel / no_show transitions.
 //
-// TIME DETERMINISM: the app aliases Date→CarbonImmutable, so every derived instant
-// is immutable. We $this->travelTo() a fixed reference instant well inside open
-// hours so "future slot" math and the past-slot omission are stable regardless of
-// the wall clock. FUTURE slots are built on the grid via bookingFutureSlot().
+// TIME: the app aliases Date→CarbonImmutable; we travelTo() a fixed weekday mid-morning
+// on the 60-min grid so slot math is deterministic. Wallet credit is seeded ONLY via
+// WalletService::topUp so balances are honest. Money is decimal(10,2) STRINGS (§5.6).
 //
-// sqlite caveat: the DB-level CHECK constraints (chk_bookings_origin, chk_bbs_*)
-// and TRUE row-lock concurrency are MariaDB-only and are NOT exercised here (the
-// suite runs on sqlite :memory:, whose lockForUpdate compiles to a no-op and which
-// skips the guarded CHECK statements). The app-level guards ARE exercised.
+// sqlite caveat: DB CHECK constraints and TRUE row-lock concurrency are MariaDB-only
+// and are NOT exercised here; the app-level guards ARE.
 
 use App\Enums\BookingOrigin;
 use App\Enums\BookingStatus;
-use App\Enums\EntitlementStatus;
-use App\Enums\ItemType;
-use App\Enums\LedgerReason;
+use App\Enums\CreditLedgerReason;
+use App\Enums\CreditSource;
 use App\Enums\UserRole;
-use App\Exceptions\RedemptionException;
+use App\Exceptions\InsufficientCreditException;
+use App\Exceptions\WalletException;
 use App\Models\Booking;
 use App\Models\Branch;
 use App\Models\BranchBookingSetting;
-use App\Models\Entitlement;
-use App\Models\EntitlementLedger;
+use App\Models\CreditLedger;
 use App\Models\Member;
-use App\Models\MemberPackage;
+use App\Models\Service;
 use App\Models\User;
 use App\Services\Booking\BookingException;
 use App\Services\Booking\BookingService;
+use App\Services\Wallet\WalletService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-/**
- * A fixed local reference instant used by every test: a weekday mid-morning well
- * inside the 09:00–20:00 window and ON the 60-min grid (10:00:00). Travelling here
- * makes "now" deterministic so past/future slot math never flakes on the clock.
- */
+/** A fixed local reference instant: Mon 2026-08-03 10:00, mid-window, on the 60-min grid. */
 function bookingNow(): CarbonImmutable
 {
-    return CarbonImmutable::parse('2026-08-03 10:00:00'); // Mon 10:00 local
+    return CarbonImmutable::parse('2026-08-03 10:00:00');
 }
 
 /** A branch to host slots. */
@@ -68,9 +62,7 @@ function bookingBranch(string $name = 'Bookable Branch'): Branch
 }
 
 /**
- * Mint a bookable BranchBookingSetting: is_bookable on, 60-min slots, wide open
- * hours (09:00–20:00), max_advance_days 30. Override any field via $overrides
- * (e.g. is_bookable false, a tighter window, a shorter advance horizon).
+ * Mint a bookable BranchBookingSetting (60-min slots, 09:00–20:00, 30-day advance).
  *
  * @param  array<string, mixed>  $overrides
  */
@@ -87,12 +79,7 @@ function bookingSettings(int $branchId, int $capacity = 1, array $overrides = []
     ], $overrides));
 }
 
-/**
- * A grid-aligned FUTURE slot start, relative to bookingNow(). $daysAhead 0 = today
- * (later than "now"), and $hour is the wall-clock hour on the 60-min grid. Default
- * 14:00 tomorrow — safely future, on-grid, inside open hours, inside the advance
- * window.
- */
+/** A grid-aligned FUTURE slot start, relative to bookingNow() (default 14:00 tomorrow). */
 function bookingFutureSlot(int $daysAhead = 1, int $hour = 14): CarbonImmutable
 {
     return bookingNow()->startOfDay()->addDays($daysAhead)->setTime($hour, 0, 0);
@@ -124,47 +111,22 @@ function bookingStaff(UserRole $role = UserRole::Staff, ?int $branchId = null): 
     return $user;
 }
 
-/**
- * Mint a single-line redeemable lot for the member so check-in has balance to
- * consume. Mirrors RedemptionEndpointTest::redeemEndpointLot — MemberPackage +
- * Entitlement + opening purchase ledger row.
- */
-function bookingLot(Member $member, string $itemCode, int $qty, ?int $branchId = null): MemberPackage
+/** An active priced service the check-in debit resolves. */
+function bookingService(string $itemCode = 'MASSAGE_60', string $price = '300.00', string $name = 'Thai Massage 60'): Service
 {
-    $lot = MemberPackage::create([
-        'member_id' => $member->id,
-        'package_id' => null,
-        'branch_id' => $branchId,
-        'purchased_at' => now(),
-        'expires_at' => now()->addDays(60),
-        'price_paid' => '0.00',
-        'status' => EntitlementStatus::Active,
-    ]);
-
-    $ent = Entitlement::create([
-        'member_package_id' => $lot->id,
-        'member_id' => $member->id,
+    return Service::create([
         'item_code' => $itemCode,
-        'item_name' => $itemCode,
-        'item_type' => ItemType::Service,
-        'qty_total' => $qty,
-        'qty_remaining' => $qty,
-        'redeem_group' => null,
-        'expires_at' => now()->addDays(60),
-        'status' => EntitlementStatus::Active,
+        'name' => $name,
+        'price' => $price,
+        'branch_id' => null,
+        'is_active' => true,
     ]);
+}
 
-    $ent->ledgerEntries()->create([
-        'member_id' => $member->id,
-        'delta' => $qty,
-        'reason' => LedgerReason::Purchase,
-        'balance_after' => $qty,
-        'booking_id' => null,
-        'staff_id' => null,
-        'note' => null,
-    ]);
-
-    return $lot;
+/** Seed spendable wallet credit for the member honestly (via the money authority). */
+function bookingCredit(Member $member, string $paid): void
+{
+    app(WalletService::class)->topUp($member, $paid, '0.00', CreditSource::Topup, null);
 }
 
 beforeEach(function () {
@@ -192,7 +154,6 @@ it('fills a slot to capacity then rejects the next create (writes no extra row)'
     expect($b2->status)->toBe(BookingStatus::Confirmed);
     expect(Booking::count())->toBe(2);
 
-    // The THIRD tap into the full slot is rejected — and nothing is written.
     expect(fn () => app(BookingService::class)->create($branch->id, $m3, 'MASSAGE_60', $slot, BookingOrigin::Member))
         ->toThrow(BookingException::class);
 
@@ -230,7 +191,6 @@ it('rejects a slot in the past', function () {
     bookingSettings($branch->id);
     $member = bookingMember();
 
-    // 08:00 today is before "now" (10:00) — a slot that already started.
     $past = bookingNow()->startOfDay()->setTime(8, 0, 0);
 
     expect(fn () => app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', $past, BookingOrigin::Member))
@@ -258,7 +218,6 @@ it('rejects an off-grid slot start', function () {
     bookingSettings($branch->id); // 60-min grid on the hour
     $member = bookingMember();
 
-    // 14:30 tomorrow is not on the :00 grid.
     $offGrid = bookingFutureSlot(daysAhead: 1, hour: 14)->addMinutes(30);
 
     expect(fn () => app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', $offGrid, BookingOrigin::Member))
@@ -272,7 +231,6 @@ it('rejects a slot beyond the max_advance_days horizon', function () {
     bookingSettings($branch->id, overrides: ['max_advance_days' => 7]);
     $member = bookingMember();
 
-    // 10 days out with a 7-day horizon — past the advance window.
     $beyond = bookingFutureSlot(daysAhead: 10, hour: 14);
 
     expect(fn () => app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', $beyond, BookingOrigin::Member))
@@ -300,34 +258,24 @@ it('rejects the same member double-booking the exact same slot', function () {
 
     app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', $slot, BookingOrigin::Member);
 
-    // Same member, same branch, same slot start → duplicate guard fires.
     expect(fn () => app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', $slot, BookingOrigin::Member))
         ->toThrow(BookingException::class);
 
-    // Only the first row exists (capacity had room; the duplicate guard, not
-    // capacity, blocked the second).
     $this->assertDatabaseCount('bookings', 1);
 });
 
 // ---------------------------------------------------------------------------
-// HAPPY PATH — snapshot + derived end + origin CHECK
+// HAPPY PATH — snapshot + derived end + origin
 // ---------------------------------------------------------------------------
 
-it('creates a confirmed member booking: snapshots item_name, derives end, created_by null', function () {
+it('creates a confirmed member booking: snapshots item_name from the services catalog, derives end, created_by null', function () {
     $branch = bookingBranch();
     bookingSettings($branch->id);
     $member = bookingMember();
     $slot = bookingFutureSlot();
 
-    // An ACTIVE catalog service so item_name is snapshotted (not the raw code).
-    $package = App\Models\Package::create([
-        'name' => 'Catalog Package', 'price' => '1000.00', 'valid_days' => 30,
-        'branch_id' => null, 'is_active' => true,
-    ]);
-    $package->lines()->create([
-        'item_code' => 'MASSAGE_60', 'item_name' => 'Thai Massage 60',
-        'item_type' => ItemType::Service, 'qty' => 10,
-    ]);
+    // An ACTIVE service so item_name is snapshotted (not the raw code).
+    bookingService('MASSAGE_60', '300.00', 'Thai Massage 60');
 
     $booking = app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', $slot, BookingOrigin::Member);
 
@@ -337,21 +285,19 @@ it('creates a confirmed member booking: snapshots item_name, derives end, create
     expect($booking->member_id)->toBe($member->id);
     expect($booking->branch_id)->toBe($branch->id);
 
-    // item_name snapshotted from the active catalog.
     expect($booking->item_name)->toBe('Thai Massage 60');
 
-    // scheduled_end = start + slot_length_minutes (60), and the length snapshot.
     expect($booking->slot_length_minutes)->toBe(60);
     expect($booking->scheduled_start->equalTo($slot))->toBeTrue();
     expect($booking->scheduled_end->equalTo($slot->addMinutes(60)))->toBeTrue();
 });
 
-it('falls back to the item code as item_name when the code is not in the active catalog', function () {
+it('falls back to the item code as item_name when the code is not an active service', function () {
     $branch = bookingBranch();
     bookingSettings($branch->id);
     $member = bookingMember();
 
-    // No catalog line for UNKNOWN_SVC → item_name falls back to the code (§3.2).
+    // No active service for UNKNOWN_SVC → item_name falls back to the code (§3.2).
     $booking = app(BookingService::class)->create($branch->id, $member, 'UNKNOWN_SVC', bookingFutureSlot(), BookingOrigin::Member);
 
     expect($booking->item_name)->toBe('UNKNOWN_SVC');
@@ -388,21 +334,18 @@ it('computes remaining per slot and marks a full slot is_full', function () {
     $tomorrow = bookingNow()->startOfDay()->addDay();
     $slot = $tomorrow->setTime(14, 0, 0);
 
-    // Two confirmed bookings into the 14:00 slot → it is full.
     $m1 = bookingMember(['phone' => '0850000011']);
     $m2 = bookingMember(['phone' => '0850000012']);
     app(BookingService::class)->create($branch->id, $m1, 'MASSAGE_60', $slot, BookingOrigin::Member);
     app(BookingService::class)->create($branch->id, $m2, 'MASSAGE_60', $slot, BookingOrigin::Member);
 
-    $slots = collect(app(BookingService::class)->availableSlots($branch->id, $tomorrow))
-        ->keyBy('start');
+    $slots = collect(app(BookingService::class)->availableSlots($branch->id, $tomorrow))->keyBy('start');
 
     $key = $slot->toIso8601String();
     expect($slots->has($key))->toBeTrue();
     expect($slots[$key]['remaining'])->toBe(0);
     expect($slots[$key]['is_full'])->toBeTrue();
 
-    // An untouched 15:00 slot still has full capacity remaining.
     $free = $tomorrow->setTime(15, 0, 0)->toIso8601String();
     expect($slots[$free]['remaining'])->toBe(2);
     expect($slots[$free]['is_full'])->toBeFalse();
@@ -411,29 +354,28 @@ it('computes remaining per slot and marks a full slot is_full', function () {
 it('omits past slots for today but keeps future ones', function () {
     $branch = bookingBranch();
     bookingSettings($branch->id); // 09:00–20:00, now is 10:00 today
-    $today = bookingNow(); // 2026-08-03 10:00
+    $today = bookingNow();
 
     $starts = collect(app(BookingService::class)->availableSlots($branch->id, $today))
         ->pluck('start')
         ->map(fn (string $iso): string => CarbonImmutable::parse($iso)->toDateTimeString());
 
-    // 09:00 already passed (before now 10:00) → omitted.
     expect($starts->contains('2026-08-03 09:00:00'))->toBeFalse();
-    // A later same-day slot remains.
     expect($starts->contains('2026-08-03 14:00:00'))->toBeTrue();
 });
 
 // ---------------------------------------------------------------------------
-// checkIn — the MONEY path (redemption + booking_id stamp), and rollback
+// checkIn — the MONEY path (wallet debit + booking_id stamp), and rollback
 // ---------------------------------------------------------------------------
 
-it('checks in a confirmed booking: deducts 1, stamps ledger booking_id, completes', function () {
+it('checks in a confirmed booking: debits the service price, stamps ledger booking_id, completes', function () {
     $branch = bookingBranch();
     bookingSettings($branch->id);
     $member = bookingMember();
-    bookingLot($member, 'MASSAGE_60', 5); // redeemable balance
+    bookingService('MASSAGE_60', '300.00');
+    bookingCredit($member, '1000.00'); // spendable balance
 
-    $staff = bookingStaff(); // no home branch → unscoped-ish; lot is any-branch anyway
+    $staff = bookingStaff();
     $booking = app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', bookingFutureSlot(), BookingOrigin::Member);
 
     $completed = app(BookingService::class)->checkIn($booking, $staff);
@@ -444,14 +386,14 @@ it('checks in a confirmed booking: deducts 1, stamps ledger booking_id, complete
     expect($completed->checked_in_at)->not->toBeNull();
     expect($completed->completed_at)->not->toBeNull();
 
-    // Exactly one unit consumed.
-    expect(Entitlement::where('item_code', 'MASSAGE_60')->sole()->qty_remaining)->toBe(4);
+    // 300 debited from the 1000 balance.
+    expect(app(WalletService::class)->balance($member))->toBe('700.00');
 
-    // The redeem ledger row carries THIS booking's id (§7) — booking_id is a FK.
-    $redeem = EntitlementLedger::where('reason', LedgerReason::Redeem)->sole();
-    expect($redeem->delta)->toBe(-1);
-    expect($redeem->booking_id)->toBe($booking->id);
-    expect($redeem->staff_id)->toBe($staff->id);
+    // The debit ledger row carries THIS booking's id (§7).
+    $debit = CreditLedger::query()->where('reason', CreditLedgerReason::Debit)->sole();
+    expect($debit->delta)->toBe('-300.00');
+    expect($debit->booking_id)->toBe($booking->id);
+    expect($debit->staff_id)->toBe($staff->id);
 
     // The booking->ledgerEntries relation resolves via booking_id.
     expect($booking->fresh()->ledgerEntries()->count())->toBe(1);
@@ -461,44 +403,64 @@ it('rolls back check-in entirely when the member has insufficient balance', func
     $branch = bookingBranch();
     bookingSettings($branch->id);
     $member = bookingMember();
-    // NO lot for MASSAGE_60 → redemption will throw RedemptionException.
+    bookingService('MASSAGE_60', '300.00');
+    // NO credit → the wallet debit throws InsufficientCreditException.
 
     $staff = bookingStaff();
     $booking = app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', bookingFutureSlot(), BookingOrigin::Member);
 
     expect(fn () => app(BookingService::class)->checkIn($booking, $staff))
-        ->toThrow(RedemptionException::class);
+        ->toThrow(InsufficientCreditException::class);
 
-    // Whole txn rolled back: booking stays confirmed, no redeem row, nothing stamped.
+    // Whole txn rolled back: booking stays confirmed, no debit row, nothing stamped.
     $fresh = $booking->fresh();
     expect($fresh->status)->toBe(BookingStatus::Confirmed);
     expect($fresh->checked_in_at)->toBeNull();
     expect($fresh->completed_at)->toBeNull();
-    expect(EntitlementLedger::where('reason', LedgerReason::Redeem)->count())->toBe(0);
+    expect(CreditLedger::query()->where('reason', CreditLedgerReason::Debit)->count())->toBe(0);
 });
 
-it('leaves the entitlement untouched when check-in redemption fails', function () {
+it('leaves the wallet untouched when check-in cannot be fully paid', function () {
     $branch = bookingBranch();
     bookingSettings($branch->id);
     $member = bookingMember();
-    // Only 0 remaining of the booked item (a used-up lot) → insufficient.
-    bookingLot($member, 'MASSAGE_60', 0);
+    bookingService('MASSAGE_60', '300.00');
+    bookingCredit($member, '100.00'); // below the price → insufficient
 
     $staff = bookingStaff();
     $booking = app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', bookingFutureSlot(), BookingOrigin::Member);
 
     expect(fn () => app(BookingService::class)->checkIn($booking, $staff))
-        ->toThrow(RedemptionException::class);
+        ->toThrow(InsufficientCreditException::class);
 
-    expect(Entitlement::where('item_code', 'MASSAGE_60')->sole()->qty_remaining)->toBe(0);
+    expect(app(WalletService::class)->balance($member))->toBe('100.00');
     expect($booking->fresh()->status)->toBe(BookingStatus::Confirmed);
+});
+
+it('rolls back check-in when the booked service is not priced (WalletException)', function () {
+    $branch = bookingBranch();
+    bookingSettings($branch->id);
+    $member = bookingMember();
+    bookingCredit($member, '1000.00');
+    // No service row for the booked code → chargeService throws WalletException.
+
+    $staff = bookingStaff();
+    $booking = app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', bookingFutureSlot(), BookingOrigin::Member);
+
+    expect(fn () => app(BookingService::class)->checkIn($booking, $staff))
+        ->toThrow(WalletException::class);
+
+    expect($booking->fresh()->status)->toBe(BookingStatus::Confirmed);
+    expect(app(WalletService::class)->balance($member))->toBe('1000.00');
+    expect(CreditLedger::query()->where('reason', CreditLedgerReason::Debit)->count())->toBe(0);
 });
 
 it('refuses to check in a booking that is not confirmed', function () {
     $branch = bookingBranch();
     bookingSettings($branch->id);
     $member = bookingMember();
-    bookingLot($member, 'MASSAGE_60', 5);
+    bookingService('MASSAGE_60', '300.00');
+    bookingCredit($member, '1000.00');
     $staff = bookingStaff();
 
     $booking = app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', bookingFutureSlot(), BookingOrigin::Member);
@@ -507,8 +469,8 @@ it('refuses to check in a booking that is not confirmed', function () {
     expect(fn () => app(BookingService::class)->checkIn($booking->fresh(), $staff))
         ->toThrow(BookingException::class);
 
-    // No redemption happened on the wrong-state check-in.
-    expect(Entitlement::where('item_code', 'MASSAGE_60')->sole()->qty_remaining)->toBe(5);
+    // No debit happened on the wrong-state check-in.
+    expect(app(WalletService::class)->balance($member))->toBe('1000.00');
 });
 
 // ---------------------------------------------------------------------------
@@ -525,16 +487,13 @@ it('cancel frees the slot so a re-create into it succeeds', function () {
 
     $first = app(BookingService::class)->create($branch->id, $m1, 'MASSAGE_60', $slot, BookingOrigin::Member);
 
-    // Slot is full — a second create is rejected.
     expect(fn () => app(BookingService::class)->create($branch->id, $m2, 'MASSAGE_60', $slot, BookingOrigin::Member))
         ->toThrow(BookingException::class);
 
-    // Cancel the first → the chair is freed (leaves the capacity-holding set).
     app(BookingService::class)->cancel($first);
     expect($first->fresh()->status)->toBe(BookingStatus::Cancelled);
     expect($first->fresh()->cancelled_at)->not->toBeNull();
 
-    // Now the re-create into the same slot succeeds.
     $second = app(BookingService::class)->create($branch->id, $m2, 'MASSAGE_60', $slot, BookingOrigin::Member);
     expect($second->status)->toBe(BookingStatus::Confirmed);
 });
@@ -565,7 +524,6 @@ it('refuses to cancel a booking that is not confirmed', function () {
     $booking = app(BookingService::class)->create($branch->id, $member, 'MASSAGE_60', bookingFutureSlot(), BookingOrigin::Member);
     app(BookingService::class)->cancel($booking); // → cancelled
 
-    // A second cancel on the terminal row is a wrong-state transition.
     expect(fn () => app(BookingService::class)->cancel($booking->fresh()))
         ->toThrow(BookingException::class);
 });

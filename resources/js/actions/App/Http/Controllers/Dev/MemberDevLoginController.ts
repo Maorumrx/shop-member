@@ -1,7 +1,7 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::index
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:33
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:91
 * @route '/member/dev-login'
 */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::index
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:33
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:91
 * @route '/member/dev-login'
 */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::index
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:33
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:91
 * @route '/member/dev-login'
 */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -35,7 +35,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::index
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:33
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:91
 * @route '/member/dev-login'
 */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,45 +44,8 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
 /**
-* @see \App\Http\Controllers\Dev\MemberDevLoginController::index
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:33
-* @route '/member/dev-login'
-*/
-const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url(options),
-    method: 'get',
-})
-
-/**
-* @see \App\Http\Controllers\Dev\MemberDevLoginController::index
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:33
-* @route '/member/dev-login'
-*/
-indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url(options),
-    method: 'get',
-})
-
-/**
-* @see \App\Http\Controllers\Dev\MemberDevLoginController::index
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:33
-* @route '/member/dev-login'
-*/
-indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url({
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'HEAD',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'get',
-})
-
-index.form = indexForm
-
-/**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::login
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:125
 * @route '/member/dev-login/{member}'
 */
 export const login = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -97,7 +60,7 @@ login.definition = {
 
 /**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::login
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:125
 * @route '/member/dev-login/{member}'
 */
 login.url = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -130,7 +93,7 @@ login.url = (args: { member: number | { id: number } } | [member: number | { id:
 
 /**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::login
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:125
 * @route '/member/dev-login/{member}'
 */
 login.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -140,50 +103,13 @@ login.get = (args: { member: number | { id: number } } | [member: number | { id:
 
 /**
 * @see \App\Http\Controllers\Dev\MemberDevLoginController::login
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
+* @see app/Http/Controllers/Dev/MemberDevLoginController.php:125
 * @route '/member/dev-login/{member}'
 */
 login.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: login.url(args, options),
     method: 'head',
 })
-
-/**
-* @see \App\Http\Controllers\Dev\MemberDevLoginController::login
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
-* @route '/member/dev-login/{member}'
-*/
-const loginForm = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: login.url(args, options),
-    method: 'get',
-})
-
-/**
-* @see \App\Http\Controllers\Dev\MemberDevLoginController::login
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
-* @route '/member/dev-login/{member}'
-*/
-loginForm.get = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: login.url(args, options),
-    method: 'get',
-})
-
-/**
-* @see \App\Http\Controllers\Dev\MemberDevLoginController::login
-* @see app/Http/Controllers/Dev/MemberDevLoginController.php:67
-* @route '/member/dev-login/{member}'
-*/
-loginForm.head = (args: { member: number | { id: number } } | [member: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: login.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'HEAD',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'get',
-})
-
-login.form = loginForm
 
 const MemberDevLoginController = { index, login }
 

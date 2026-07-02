@@ -5,18 +5,19 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\BookingOrigin;
-use App\Enums\EntitlementStatus;
-use App\Exceptions\RedemptionException;
+use App\Exceptions\InsufficientCreditException;
+use App\Exceptions\WalletException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreBookingRequest;
 use App\Models\Booking;
 use App\Models\Branch;
-use App\Models\Entitlement;
 use App\Models\Member;
+use App\Models\Service;
 use App\Models\User;
 use App\Services\Booking\BookingException;
 use App\Services\Booking\BookingService;
 use App\Services\Line\MemberNotifier;
+use App\Services\Wallet\WalletService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ use Inertia\Response;
  * docs/phase7-booking-design.md §6–§8). Owner AND staff (front-desk operators) —
  * gated at the route via `role:owner,staff`.
  *
- * BRANCH SCOPING (§5.5, mirroring RedemptionController): a STAFF operates on their
+ * BRANCH SCOPING (§5.5, same discipline as the wallet actions): a STAFF operates on their
  * OWN home branch (`users.branch_id`); an OWNER (branch_id null) is unscoped and
  * may act on any branch. The day-view defaults to the operator's branch; staff
  * cannot view/act on another branch's bookings.
@@ -38,8 +39,9 @@ use Inertia\Response;
  *     `bookings` (that day), `availability` (slot grid + remaining), `branches`
  *     (allowed for this operator), `services`, `filters` ({branch_id,date}).
  *   - store (POST): staff books on behalf of a member (created_via=staff).
- *   - checkIn (POST): runs redemption + completes; a RedemptionException surfaces
- *     as "sell a package first" (booking stays confirmed).
+ *   - checkIn (POST): charges the wallet + completes; an InsufficientCreditException
+ *     surfaces as "top up first" (booking stays confirmed), a WalletException as
+ *     "service not priced".
  *   - noShow (POST) / cancel (DELETE): status transitions.
  */
 class BookingController extends Controller
@@ -120,14 +122,15 @@ class BookingController extends Controller
     }
 
     /**
-     * Check in a confirmed booking (§7) — runs redemption then completes, in ONE
-     * transaction. On insufficient balance the RedemptionException rolls the whole
-     * thing back (the booking STAYS confirmed) and we tell staff to sell a package
-     * first. A BookingException means the row wasn't confirmed (wrong state).
+     * Check in a confirmed booking (§7) — charges the wallet then completes, in ONE
+     * transaction. On insufficient balance the InsufficientCreditException rolls the
+     * whole thing back (the booking STAYS confirmed) and we tell staff to top up
+     * first; a WalletException means the booked service has no active price. A
+     * BookingException means the row wasn't confirmed (wrong state).
      *
      * Branch guard: staff may only check in bookings at their OWN branch.
      */
-    public function checkIn(Request $request, Booking $booking, BookingService $bookings, MemberNotifier $notifier): RedirectResponse
+    public function checkIn(Request $request, Booking $booking, BookingService $bookings, MemberNotifier $notifier, WalletService $wallet): RedirectResponse
     {
         $staff = $request->user();
 
@@ -135,9 +138,14 @@ class BookingController extends Controller
 
         try {
             $bookings->checkIn($booking, $staff);
-        } catch (RedemptionException) {
-            // Insufficient balance — nothing consumed, booking still confirmed.
-            Inertia::flash('toast', ['type' => 'error', 'message' => __('สิทธิ์ไม่พอ: กรุณาขายแพ็คเกจก่อนเช็คอิน')]);
+        } catch (InsufficientCreditException) {
+            // Balance below the price — nothing debited, booking still confirmed.
+            Inertia::flash('toast', ['type' => 'error', 'message' => __('เครดิตไม่พอ: กรุณาเติมเครดิตก่อนเช็คอิน')]);
+
+            return back();
+        } catch (WalletException) {
+            // The booked service isn't priced — booking still confirmed.
+            Inertia::flash('toast', ['type' => 'error', 'message' => __('เช็คอินไม่ได้: บริการนี้ยังไม่ได้ตั้งราคา')]);
 
             return back();
         } catch (BookingException) {
@@ -146,21 +154,21 @@ class BookingController extends Controller
             return back();
         }
 
-        // Best-effort redemption receipt for THIS booking's service (one slot = one
-        // unit, v1) AFTER the check-in committed. `remainingForItem` re-reads the
-        // member's now-decremented balance for the booked item. Queued, never
+        // Best-effort service-charge receipt AFTER the check-in committed: the booked
+        // service name, the amount charged (its catalog price), and the member's
+        // remaining wallet balance (re-read from the money authority). Queued, never
         // blocks/fails the check-in (no-op if the member isn't LINE-linked).
         $member = $booking->member;
         if ($member !== null) {
-            $notifier->redemptionReceipt(
+            $notifier->serviceChargeReceipt(
                 $member,
                 $booking->item_name,
-                1,
-                $this->remainingForItem($member, $booking->item_code),
+                $this->servicePrice($booking->item_code),
+                $wallet->balance($member),
             );
         }
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('เช็คอินและตัดสิทธิ์แล้ว')]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('เช็คอินและหักเครดิตแล้ว')]);
 
         return back();
     }
@@ -326,18 +334,17 @@ class BookingController extends Controller
     }
 
     /**
-     * The member's remaining redeemable units for `$itemCode` — the sum of
-     * `qty_remaining` across their still-active entitlements for that item, read
-     * AFTER a check-in redemption committed. Feeds the LINE receipt's "คงเหลือ"
-     * figure. A best-effort display value only (not a redemption gate); used_up /
-     * expired rows are excluded by the active filter.
+     * The baht price of `$itemCode` from the `services` catalog — the amount debited
+     * at check-in, for the LINE receipt. A decimal-2 STRING (§5.6); falls back to
+     * "0.00" if the service can't be resolved (defensive — a successful check-in
+     * means it was priced).
      */
-    private function remainingForItem(Member $member, string $itemCode): int
+    private function servicePrice(string $itemCode): string
     {
-        return (int) Entitlement::query()
-            ->where('member_id', $member->id)
+        $price = Service::query()
             ->where('item_code', $itemCode)
-            ->where('status', EntitlementStatus::Active)
-            ->sum('qty_remaining');
+            ->value('price');
+
+        return $price !== null ? (string) $price : '0.00';
     }
 }

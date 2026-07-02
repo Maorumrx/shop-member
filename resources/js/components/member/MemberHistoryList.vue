@@ -1,25 +1,24 @@
 <script setup lang="ts">
 /**
- * MemberHistoryList — the member's recent activity feed inside one wrapping
- * card. Each row: a reason dot + icon + Thai label, the item name + short Thai
- * date, and the signed delta on the right. NO staff names (the member view never
+ * MemberHistoryList — the member's recent wallet activity, in one wrapping card.
+ * Each row: a reason dot + icon + Thai label, the short Thai date (+ any note),
+ * and the SIGNED baht delta on the right. NO staff names (the member view never
  * receives them).
  *
- * The server already caps history at 50; we show the most recent few here and
- * slice client-side. Because we intentionally cap, there is NO "ดูทั้งหมด" link
- * (it would go nowhere).
- *
- * a11y: rendered as a `<ul>`/`<li>`; each reason state pairs a token color with
- * an icon AND a Thai label; rows are padded to a ≥44px touch target.
+ * The server caps history at 50; we show the most recent few and slice client-
+ * side (no "ดูทั้งหมด" link — it would go nowhere). a11y: `<ul>`/`<li>`, each
+ * reason pairs a token color with an icon AND a Thai label; rows are ≥44px.
  */
-import { Clock, Plus, Scissors } from '@lucide/vue';
-import { computed, type Component } from 'vue';
+import { Clock, Gift, Minus, Plus, RotateCcw, Settings2 } from '@lucide/vue';
+import { computed } from 'vue';
+import type { Component } from 'vue';
+import { formatSignedBaht } from '@/lib/money';
 import { formatThaiDateTime, reasonLabel } from '@/lib/thai';
-import type { HistoryReason, MemberHistoryRow } from '@/types/members';
+import type { HistoryReason, MemberWalletHistoryRow } from '@/types/members';
 
 const props = withDefaults(
     defineProps<{
-        history: MemberHistoryRow[];
+        history: MemberWalletHistoryRow[];
         /** How many most-recent rows to show (server already caps at 50). */
         limit?: number;
     }>(),
@@ -32,26 +31,32 @@ const rows = computed(() => props.history.slice(0, props.limit));
 
 type ReasonStyle = {
     icon: Component;
-    /** Dot color token utility (never white text — used as a small dot only). */
+    /** Dot color token utility (used as a small filled dot only). */
     dotClass: string;
 };
 
-const REASON_STYLES: Record<'redeem' | 'expire' | 'refund', ReasonStyle> = {
-    redeem: { icon: Scissors, dotClass: 'bg-[var(--color-primary-strong)]' },
+const REASON_STYLES: Record<
+    'topup' | 'bonus' | 'debit' | 'refund' | 'expire' | 'adjust',
+    ReasonStyle
+> = {
+    topup: { icon: Plus, dotClass: 'bg-[var(--color-success)]' },
+    bonus: { icon: Gift, dotClass: 'bg-[var(--color-success)]' },
+    debit: { icon: Minus, dotClass: 'bg-[var(--color-primary-strong)]' },
+    refund: { icon: RotateCcw, dotClass: 'bg-[var(--color-primary-strong)]' },
     expire: { icon: Clock, dotClass: 'bg-[var(--color-warning)]' },
-    refund: { icon: Plus, dotClass: 'bg-[var(--color-success)]' },
+    adjust: { icon: Settings2, dotClass: 'bg-[var(--color-primary-strong)]' },
 };
 
 function reasonStyle(reason: HistoryReason): ReasonStyle {
     return (
         REASON_STYLES[reason as keyof typeof REASON_STYLES] ??
-        REASON_STYLES.redeem
+        REASON_STYLES.debit
     );
 }
 
-/** Signed delta render — `+1` for a positive (refund), `-1` otherwise. */
-function formatDelta(delta: number): string {
-    return delta > 0 ? `+${delta}` : String(delta);
+/** Whether a signed decimal string is positive (drives the delta color). */
+function isPositive(value: string): boolean {
+    return Number.parseFloat(value) > 0;
 }
 </script>
 
@@ -82,23 +87,23 @@ function formatDelta(delta: number): string {
 
                 <div class="flex min-w-0 flex-1 flex-col">
                     <span class="truncate text-sm text-[var(--color-ink)]">
-                        {{ row.item_name ?? '—' }}
+                        {{ reasonLabel(row.reason) }}
                     </span>
-                    <span class="text-xs text-[var(--color-ink-muted)]">
-                        {{ reasonLabel(row.reason) }} ·
+                    <span class="truncate text-xs text-[var(--color-ink-muted)]">
                         {{ formatThaiDateTime(row.created_at) }}
+                        <template v-if="row.note"> · {{ row.note }} </template>
                     </span>
                 </div>
 
                 <span
                     class="shrink-0 font-heading text-base font-semibold tabular-nums"
                     :class="
-                        row.delta > 0
+                        isPositive(row.delta)
                             ? 'text-[var(--color-success)]'
                             : 'text-[var(--color-ink)]'
                     "
                 >
-                    {{ formatDelta(row.delta) }}
+                    {{ formatSignedBaht(row.delta) }}
                 </span>
             </li>
         </ul>

@@ -50,7 +50,7 @@ Route::middleware('auth:members')->group(function () {
         ->name('member.logout');
 
     // Member dashboard — the LINE-LIFF member home (Phase 6): balance hero,
-    // active lots, and recent history from the shared MemberEntitlementQuery.
+    // active credit lots, and recent history from the shared MemberWalletQuery.
     Route::get('member/dashboard', [DashboardController::class, 'index'])->name('member.dashboard');
 
     // Member booking (จองคิว, Phase 7) — the LIFF self-booking surface. Every

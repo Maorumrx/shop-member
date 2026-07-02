@@ -1,31 +1,39 @@
 <script setup lang="ts">
 /**
- * Admin/Members/Show — member detail + sell flow (architecture.md §3.3, §3.5).
+ * Admin/Members/Show — member detail + wallet flow (credit-wallet reframe).
  *
- * Three stacked surfaces:
- *  1. Header card — name/phone/email + LINE-linked & active badges, plus an
- *     "แก้ไข" Dialog (PUT /members/{id}, mirrors the Index create/edit form).
- *  2. Balance summary — the aggregate `balanceByType` rows ("นวด: 18 ครั้ง").
- *  3. Lots list — each `member_packages` row (newest first) with purchased/expiry
- *     dates, price paid, a status badge, and its entitlements (remaining/total).
+ * Stacked surfaces:
+ *  1. Header card — name/phone/email + LINE-linked & active badges, an "แก้ไข"
+ *     Dialog (PUT /members/{id}), and a "จองคิวให้สมาชิก" shortcut.
+ *  2. LINE linking — generate a one-off claim code (unchanged).
+ *  3. Balance hero — the single spendable ฿ figure.
+ *  4. Wallet actions — SELL CREDIT (top-up preset OR custom paid + bonus),
+ *     CHARGE (pick a priced service), REFUND (amount + note), and (owner-only)
+ *     ADJUST (signed delta + note). Each is its own Inertia form so a 422 domain
+ *     failure (keyed item_code / amount / delta) renders inline.
+ *  5. Credit lots — each active lot's paid/bonus/total remaining + near-expiry.
+ *  6. Wallet history — every movement (topup/bonus/debit/refund/expire/adjust)
+ *     with a signed ฿ delta, running balance, and the acting staff.
  *
- * Sell panel: pick an active package (Select), the price_paid input AUTO-FILLS
- * that package's list price but stays editable (override). On a successful sale
- * the controller redirects back to Show, so balance + lots refresh on their own.
- * `is_active` is always coerced to a real boolean in the edit payload.
+ * Every mutation redirects back to Show, so the balance/lots/history refresh on
+ * their own; the global toast fires from the flashed `toast`. `walletResult` is
+ * flashed on charge/refund/adjust and surfaced as a small transient line.
  */
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
+    ArrowDownCircle,
     CalendarPlus,
     History,
     Link2,
     Pencil,
+    RotateCcw,
     Scissors,
+    Settings2,
     ShoppingCart,
     UserRound,
     Wallet,
 } from '@lucide/vue';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,24 +56,27 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { formatBaht } from '@/lib/money';
-import { formatThaiDateTime } from '@/lib/thai';
+import { formatBaht, formatSignedBaht } from '@/lib/money';
+import { formatThaiDate, formatThaiDateTime, reasonLabel } from '@/lib/thai';
 import type {
-    ActivePackageOption,
-    BalanceLine,
-    EntitlementStatus,
+    CreditSource,
     HistoryReason,
-    HistoryRow,
     LinkCode,
     MemberDetail,
-    RedemptionResult,
+    ServiceOption,
+    TopupOfferOption,
+    WalletHistoryRow,
+    WalletLot,
+    WalletResult,
 } from '@/types/members';
 
 const props = defineProps<{
     member: MemberDetail;
-    balanceByType: BalanceLine[];
-    activePackages: ActivePackageOption[];
-    history: HistoryRow[];
+    balance: string;
+    lots: WalletLot[];
+    topupOffers: TopupOfferOption[];
+    services: ServiceOption[];
+    history: WalletHistoryRow[];
 }>();
 
 defineOptions({
@@ -77,96 +88,39 @@ defineOptions({
     },
 });
 
-/** Date-only Thai render; falls back to the "no expiry" caller's own label. */
-function formatDate(value: string | null): string | null {
-    if (!value) {
-        return null;
-    }
+const page = usePage();
+/** ADJUST is owner-only (route `role:owner`); hide the control for staff. */
+const isOwner = computed(() => page.props.auth.user.role === 'owner');
 
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-
-    return new Intl.DateTimeFormat('th-TH', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    }).format(date);
-}
-
-/** Date + time render for the history rows (a ledger entry is a point in time). */
-function formatDateTime(value: string | null): string {
-    if (!value) {
-        return '—';
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-
-    return new Intl.DateTimeFormat('th-TH', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    }).format(date);
-}
-
-/** Signed render for a ledger delta, e.g. `-1`, `+2` (zero stays bare). */
-function formatDelta(delta: number): string {
-    if (delta > 0) {
-        return `+${delta}`;
-    }
-
-    return String(delta);
-}
-
-/** Status badge styling (active = default, terminal states = muted/destructive). */
-const STATUS_LABEL: Record<EntitlementStatus, string> = {
-    active: 'ใช้งานได้',
-    expired: 'หมดอายุ',
-    used_up: 'ใช้ครบแล้ว',
+/* ── Credit-lot source labels ───────────────────────────────────────────── */
+const SOURCE_LABEL: Record<CreditSource, string> = {
+    topup: 'เติมเครดิต',
+    adjustment: 'ปรับยอด',
 };
 
-function statusVariant(
-    status: EntitlementStatus,
-): 'default' | 'secondary' | 'destructive' {
-    if (status === 'active') {
-        return 'default';
-    }
-
-    return status === 'expired' ? 'destructive' : 'secondary';
+function sourceLabel(source: CreditSource): string {
+    return SOURCE_LABEL[source] ?? source;
 }
 
 /* ── History (ledger) reason styling ────────────────────────────────────── */
-const REASON_LABEL: Record<string, string> = {
-    redeem: 'ตัดสิทธิ์',
-    expire: 'หมดอายุ',
-    refund: 'คืนสิทธิ์',
-};
-
-/** Falls back to the raw reason string for any backend-added reason. */
-function reasonLabel(reason: HistoryReason): string {
-    return REASON_LABEL[reason] ?? reason;
-}
-
 function reasonVariant(
     reason: HistoryReason,
 ): 'default' | 'secondary' | 'destructive' {
-    if (reason === 'redeem') {
-        return 'destructive';
-    }
-
-    if (reason === 'refund') {
+    if (reason === 'topup' || reason === 'bonus') {
         return 'default';
     }
 
+    if (reason === 'debit') {
+        return 'destructive';
+    }
+
+    // refund / expire / adjust
     return 'secondary';
+}
+
+/** Whether a signed decimal string is negative (drives the delta text color). */
+function isNegative(value: string): boolean {
+    return Number.parseFloat(value) < 0;
 }
 
 /* ── Edit member dialog (PUT /members/{id}) ─────────────────────────────── */
@@ -202,57 +156,127 @@ function submitEdit(): void {
     });
 }
 
-/* ── Sell panel (POST /members/{id}/purchases) ──────────────────────────── */
-const sellForm = useForm<{
-    package_id: number | null;
-    price_paid: string;
-}>({
-    package_id: null,
-    price_paid: '',
-});
-
-const selectedPackage = computed<ActivePackageOption | null>(() => {
-    if (sellForm.package_id === null) {
-        return null;
-    }
-
-    return (
-        props.activePackages.find((p) => p.id === sellForm.package_id) ?? null
-    );
-});
-
+/* ── Sell credit (POST /members/{id}/topups) ────────────────────────────── */
 /**
- * Auto-fill price_paid with the selected package's list price (editable). We
- * normalize the decimal string/number to a 2dp string so the input shows a clean
- * default; the operator can override before selling.
+ * A top-up is EITHER a preset (topup_offer_id) OR a custom pair (amount_paid +
+ * bonus_amount). Picking a preset chip clears the custom fields; typing a custom
+ * amount deselects the preset. The server resolves the amounts (a preset wins).
  */
-function onPackageChange(value: string): void {
-    sellForm.package_id = value === '' ? null : Number(value);
+const sellForm = useForm<{
+    topup_offer_id: number | null;
+    amount_paid: string;
+    bonus_amount: string;
+}>({
+    topup_offer_id: null,
+    amount_paid: '',
+    bonus_amount: '',
+});
+
+function selectOffer(offer: TopupOfferOption): void {
+    sellForm.clearErrors();
+    sellForm.topup_offer_id =
+        sellForm.topup_offer_id === offer.id ? null : offer.id;
+    sellForm.amount_paid = '';
+    sellForm.bonus_amount = '';
 }
 
-watch(selectedPackage, (pkg) => {
-    sellForm.price_paid = pkg == null ? '' : String(Number(pkg.price));
+/** Typing a custom amount deselects any chosen preset. */
+function onCustomInput(): void {
+    sellForm.topup_offer_id = null;
+}
+
+/** Live "credit the member will get" preview (preset total, else custom sum). */
+const sellPreview = computed<number>(() => {
+    if (sellForm.topup_offer_id !== null) {
+        const offer = props.topupOffers.find(
+            (o) => o.id === sellForm.topup_offer_id,
+        );
+
+        return offer ? Number(offer.amount) + Number(offer.bonus) : 0;
+    }
+
+    return Number(sellForm.amount_paid || 0) + Number(sellForm.bonus_amount || 0);
 });
 
+const canSell = computed<boolean>(
+    () => !sellForm.processing && sellPreview.value > 0,
+);
+
+/**
+ * The server can attach a `member` error (selling to a deactivated member) that
+ * isn't one of the form's own keys, so read it off the errors bag with a cast.
+ */
+const sellMemberError = computed<string | undefined>(
+    () => (sellForm.errors as Record<string, string | undefined>).member,
+);
+
 function sell(): void {
-    sellForm.post(`/members/${props.member.id}/purchases`, {
+    // Custom path: satisfy `required_without:topup_offer_id` when the operator
+    // entered only a bonus (server still guards paid>0 || bonus>0).
+    if (sellForm.topup_offer_id === null && sellForm.amount_paid === '') {
+        sellForm.amount_paid = '0';
+    }
+
+    sellForm.post(`/members/${props.member.id}/topups`, {
         preserveScroll: true,
         onSuccess: () => {
-            // Sale redirects back to Show with fresh balance/lots; just clear the
-            // panel so the operator can start the next sale cleanly.
             sellForm.reset();
         },
     });
 }
 
+/* ── Charge a service (POST /members/{id}/wallet/charge) ─────────────────── */
+const chargeForm = useForm<{ item_code: string | null }>({
+    item_code: props.services.length === 1 ? props.services[0].item_code : null,
+});
+
+const selectedService = computed<ServiceOption | null>(
+    () =>
+        props.services.find((s) => s.item_code === chargeForm.item_code) ??
+        null,
+);
+
+function charge(): void {
+    if (chargeForm.item_code === null) {
+        return;
+    }
+
+    chargeForm.post(`/members/${props.member.id}/wallet/charge`, {
+        preserveScroll: true,
+    });
+}
+
+/* ── Refund paid credit (POST /members/{id}/wallet/refund) ───────────────── */
+const refundForm = useForm<{ amount: string; note: string }>({
+    amount: '',
+    note: '',
+});
+
+function refund(): void {
+    refundForm.post(`/members/${props.member.id}/wallet/refund`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            refundForm.reset();
+        },
+    });
+}
+
+/* ── Owner adjust (POST /members/{id}/wallet/adjust) ─────────────────────── */
+const adjustForm = useForm<{ delta: string; note: string }>({
+    delta: '',
+    note: '',
+});
+
+function adjust(): void {
+    adjustForm.post(`/members/${props.member.id}/wallet/adjust`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            adjustForm.reset();
+        },
+    });
+}
+
 /* ── Book on behalf (shortcut to the admin day board) ───────────────────── */
-/**
- * The availability endpoint is members-guarded (staff can't reach it), so rather
- * than duplicate slot-fetching here, we hand off to the Admin day board — which
- * already receives real `availability` for a branch+day — with this member pinned
- * via query params. The board shows a "จองคิวให้สมาชิก" panel and POSTs to
- * `bookings.store` with `member_id`. No new backend endpoint is added.
- */
 function bookOnBehalf(): void {
     const today = new Date();
     const y = today.getFullYear();
@@ -266,74 +290,14 @@ function bookOnBehalf(): void {
     });
 }
 
-/* ── Redeem (POST /members/{id}/redemptions) ────────────────────────────── */
-/**
- * One-click ตัดสิทธิ์ per balance row, with an optional qty stepper (default 1,
- * min 1, max = that row's remaining). We post a transient `useForm` per click so
- * `processing` can be tracked PER item_code — a fresh form is built each call,
- * but the in-flight form is stashed in `redeemingCode` so only the row being cut
- * shows a busy/disabled state (other rows stay clickable). On success the
- * controller redirects back to Show, refreshing balances + history (and the
- * global success toast fires from the flashed `toast` payload).
- */
-const redeemQty = ref<Record<string, number>>({});
-const redeemingCode = ref<string | null>(null);
-
-/** Clamp the per-row qty into [1, remaining] (called on input + before submit). */
-function clampQty(line: BalanceLine): number {
-    const raw = redeemQty.value[line.item_code] ?? 1;
-    const max = Math.max(line.remaining, 1);
-    const next = Math.min(Math.max(Math.trunc(raw) || 1, 1), max);
-    redeemQty.value[line.item_code] = next;
-
-    return next;
-}
-
-function redeem(line: BalanceLine): void {
-    if (line.remaining < 1 || redeemingCode.value !== null) {
-        return;
-    }
-
-    const qty = clampQty(line);
-    redeemingCode.value = line.item_code;
-
-    const redeemForm = useForm<{ item_code: string; qty: number }>({
-        item_code: line.item_code,
-        qty,
-    });
-
-    redeemForm.post(`/members/${props.member.id}/redemptions`, {
-        preserveScroll: true,
-        onSuccess: () => {
-            // Reset the stepper for this row; balances/history come back fresh.
-            redeemQty.value[line.item_code] = 1;
-        },
-        onFinish: () => {
-            redeemingCode.value = null;
-        },
-    });
-}
-
 /* ── LINE account linking (generate claim code) ─────────────────────────── */
-/**
- * Linked state is read straight off the member prop — `line_user_id` is already
- * serialized on the Show payload (it drives the header badge). A linked member
- * is never eligible for a new code, so we hide the generate button entirely and
- * show a subtle "เชื่อม LINE แล้ว" note instead (design §1 / §3).
- */
 const isLineLinked = computed<boolean>(
     () => props.member.line_user_id !== null,
 );
 
-/** The one-off plaintext code, captured from the flashed `linkCode` (below). */
 const linkCode = ref<LinkCode | null>(null);
 const generatingCode = ref(false);
 
-/**
- * Mint a fresh claim code for this (unlinked) member. The controller flashes back
- * `linkCode = { code, expires_at }` + a success toast, so we just POST and let the
- * flash listener render the code. `preserveScroll` keeps the operator in place.
- */
 function generateLinkCode(): void {
     if (generatingCode.value || isLineLinked.value) {
         return;
@@ -353,48 +317,31 @@ function generateLinkCode(): void {
     );
 }
 
-/* ── Optional: surface the detailed redemption result ───────────────────── */
+/* ── Transient: the last wallet action result (flashed `walletResult`) ───── */
 /**
- * The controller flashes a detailed `redemption` result (what was actually
- * deducted, including coupled add-ons). We mirror flashToast.ts — subscribe to
- * the Inertia `flash` event and read `event.detail.flash.redemption` — and build
- * a transient, human line ("ตัดนวด 1 (เหลือ 9) + ประคบ 1 (คู่)") shown above the
- * history. This listener is additive to the global toast listener (router.on
- * supports multiple subscribers); we tear it down on unmount. Purely polish — if
- * the flash is absent we just rely on the success toast + refreshed data.
+ * The controller flashes a detailed `walletResult` after charge/refund/adjust. We
+ * subscribe to Inertia's `flash` event (additive to the global toast listener) and
+ * show a small line above the history. Purely polish — the redirect already
+ * refreshed balance/lots/history.
  */
-const lastRedemption = ref<string | null>(null);
+const lastResult = ref<WalletResult | null>(null);
 let stopFlashListener: (() => void) | null = null;
-
-function describeRedemption(result: RedemptionResult): string {
-    return result.movements
-        .map((m) => {
-            const name = m.item_name ?? m.item_code;
-            const coupled = m.was_coupled ? ' (คู่)' : '';
-
-            return `${name} ${m.taken} (เหลือ ${m.remaining_after})${coupled}`;
-        })
-        .join(' + ');
-}
 
 onMounted(() => {
     stopFlashListener = router.on('flash', (event) => {
         const flash = (event as CustomEvent).detail?.flash;
 
-        // A freshly generated LINE claim code (flashed once, never persisted).
         const code = flash?.linkCode as LinkCode | undefined;
 
         if (code?.code) {
             linkCode.value = code;
         }
 
-        const result = flash?.redemption as RedemptionResult | undefined;
+        const result = flash?.walletResult as WalletResult | undefined;
 
-        if (!result || result.movements.length === 0) {
-            return;
+        if (result) {
+            lastResult.value = result;
         }
-
-        lastRedemption.value = `ตัด ${describeRedemption(result)}`;
     });
 });
 
@@ -488,7 +435,6 @@ onUnmounted(() => {
                 </CardTitle>
             </CardHeader>
             <CardContent class="flex flex-col gap-4">
-                <!-- Already linked: no code to generate. -->
                 <div
                     v-if="isLineLinked"
                     class="flex items-center gap-2 text-sm text-muted-foreground"
@@ -500,11 +446,9 @@ onUnmounted(() => {
                 <template v-else>
                     <p class="text-sm text-muted-foreground">
                         สร้างรหัส 6 หลักให้ลูกค้ากรอกในแอป LINE
-                        เพื่อผูกสิทธิ์ทั้งหมดของสมาชิกนี้เข้ากับบัญชี LINE
-                        ของลูกค้า
+                        เพื่อผูกเครดิตของสมาชิกนี้เข้ากับบัญชี LINE ของลูกค้า
                     </p>
 
-                    <!-- Freshly generated code — shown once, prominently. -->
                     <div
                         v-if="linkCode"
                         class="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-4 py-4"
@@ -544,152 +488,302 @@ onUnmounted(() => {
             </CardContent>
         </Card>
 
-        <!-- Balance summary -->
+        <!-- Balance hero -->
         <Card>
             <CardHeader>
                 <CardTitle class="flex items-center gap-2 text-base">
                     <Wallet class="size-4 text-muted-foreground" />
-                    สิทธิ์คงเหลือ
+                    เครดิตคงเหลือ
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                <div
-                    v-if="props.balanceByType.length > 0"
-                    class="flex flex-wrap gap-3"
-                >
-                    <div
-                        v-for="line in props.balanceByType"
-                        :key="line.item_code"
-                        class="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3"
-                    >
-                        <div>
-                            <p class="text-sm text-muted-foreground">
-                                {{ line.item_name }}
-                            </p>
-                            <p
-                                class="font-heading text-2xl font-bold tabular-nums"
-                            >
-                                {{ line.remaining }} ครั้ง
-                            </p>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <Input
-                                :id="`redeem-qty-${line.item_code}`"
-                                type="number"
-                                min="1"
-                                :max="line.remaining"
-                                class="h-8 w-16 tabular-nums"
-                                :model-value="redeemQty[line.item_code] ?? 1"
-                                :disabled="line.remaining < 1"
-                                :aria-label="`จำนวนที่จะตัด — ${line.item_name}`"
-                                @update:model-value="
-                                    redeemQty[line.item_code] = Number($event);
-                                    clampQty(line);
-                                "
-                            />
-                            <Button
-                                size="sm"
-                                variant="destructive"
-                                :disabled="
-                                    line.remaining < 1 || redeemingCode !== null
-                                "
-                                @click="redeem(line)"
-                            >
-                                <Scissors />
-                                ตัด
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-                <p v-else class="text-sm text-muted-foreground">
-                    ยังไม่มีสิทธิ์คงเหลือ
+                <p class="font-heading text-4xl font-bold tabular-nums">
+                    {{ formatBaht(props.balance) }}
+                </p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                    ยอดเครดิตที่ใช้จ่ายได้ทั้งหมด (รวมโบนัส)
                 </p>
             </CardContent>
         </Card>
 
-        <!-- Sell panel -->
+        <!-- Sell credit -->
         <Card>
             <CardHeader>
                 <CardTitle class="flex items-center gap-2 text-base">
                     <ShoppingCart class="size-4 text-muted-foreground" />
-                    ขายแพ็คเกจ
+                    ขายเครดิต
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                <form
-                    class="flex flex-col gap-4 sm:flex-row sm:items-start"
-                    @submit.prevent="sell"
-                >
-                    <div class="grid flex-1 gap-2">
-                        <Label for="sell-package">แพ็คเกจ</Label>
-                        <Select
-                            :model-value="
-                                sellForm.package_id === null
-                                    ? ''
-                                    : String(sellForm.package_id)
-                            "
-                            @update:model-value="
-                                onPackageChange($event as string)
-                            "
-                        >
-                            <SelectTrigger id="sell-package" class="w-full">
-                                <SelectValue placeholder="เลือกแพ็คเกจ" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem
-                                    v-for="pkg in props.activePackages"
-                                    :key="pkg.id"
-                                    :value="String(pkg.id)"
-                                >
-                                    {{ pkg.name }} — {{ formatBaht(pkg.price) }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <InputError :message="sellForm.errors.package_id" />
+                <form class="flex flex-col gap-4" @submit.prevent="sell">
+                    <!-- Preset quick-pick chips -->
+                    <div
+                        v-if="props.topupOffers.length > 0"
+                        class="flex flex-col gap-2"
+                    >
+                        <Label>แพ็กเกจเติมเครดิต</Label>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                v-for="offer in props.topupOffers"
+                                :key="offer.id"
+                                type="button"
+                                class="flex flex-col items-start gap-0.5 rounded-lg border px-4 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                :class="
+                                    sellForm.topup_offer_id === offer.id
+                                        ? 'border-primary bg-primary/10 text-foreground'
+                                        : 'border-border bg-background text-foreground hover:bg-muted/60'
+                                "
+                                :aria-pressed="
+                                    sellForm.topup_offer_id === offer.id
+                                "
+                                @click="selectOffer(offer)"
+                            >
+                                <span class="font-medium">{{ offer.name }}</span>
+                                <span class="text-xs text-muted-foreground">
+                                    จ่าย {{ formatBaht(offer.amount) }}
+                                    <template v-if="Number(offer.bonus) > 0">
+                                        · โบนัส {{ formatBaht(offer.bonus) }}
+                                    </template>
+                                </span>
+                            </button>
+                        </div>
+                        <InputError :message="sellForm.errors.topup_offer_id" />
                     </div>
 
-                    <div class="grid gap-2 sm:w-48">
-                        <Label for="sell-price">ราคาที่ชำระ (บาท)</Label>
-                        <Input
-                            id="sell-price"
-                            v-model="sellForm.price_paid"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                        />
-                        <p class="text-xs text-muted-foreground">
-                            เติมราคาแพ็คเกจอัตโนมัติ แก้ไขได้
+                    <!-- Custom amount + bonus -->
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div class="grid gap-2">
+                            <Label for="sell-amount">ยอดจ่าย (บาท)</Label>
+                            <Input
+                                id="sell-amount"
+                                v-model="sellForm.amount_paid"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="หรือกำหนดเอง"
+                                @input="onCustomInput"
+                            />
+                            <InputError :message="sellForm.errors.amount_paid" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="sell-bonus">โบนัส (บาท)</Label>
+                            <Input
+                                id="sell-bonus"
+                                v-model="sellForm.bonus_amount"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                @input="onCustomInput"
+                            />
+                            <InputError
+                                :message="sellForm.errors.bonus_amount"
+                            />
+                        </div>
+                    </div>
+
+                    <InputError :message="sellMemberError" />
+
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-3"
+                    >
+                        <p class="text-sm text-muted-foreground">
+                            เครดิตที่จะได้:
+                            <span
+                                class="font-heading text-base font-semibold text-foreground tabular-nums"
+                            >
+                                {{ formatBaht(sellPreview) }}
+                            </span>
                         </p>
-                        <InputError :message="sellForm.errors.price_paid" />
-                    </div>
-
-                    <div class="flex sm:pt-7">
-                        <Button
-                            type="submit"
-                            :disabled="
-                                sellForm.processing ||
-                                sellForm.package_id === null
-                            "
-                        >
+                        <Button type="submit" :disabled="!canSell">
                             <ShoppingCart />
-                            ขาย
+                            ขายเครดิต
                         </Button>
                     </div>
                 </form>
             </CardContent>
         </Card>
 
-        <!-- Lots list -->
+        <!-- Charge a service -->
         <Card>
             <CardHeader>
-                <CardTitle class="text-base">แพ็คเกจที่ซื้อ</CardTitle>
+                <CardTitle class="flex items-center gap-2 text-base">
+                    <Scissors class="size-4 text-muted-foreground" />
+                    หักเครดิต (ใช้บริการ)
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <form
+                    class="flex flex-col gap-4 sm:flex-row sm:items-start"
+                    @submit.prevent="charge"
+                >
+                    <div class="grid flex-1 gap-2">
+                        <Label for="charge-service">บริการ</Label>
+                        <Select
+                            :model-value="chargeForm.item_code ?? ''"
+                            @update:model-value="
+                                chargeForm.item_code =
+                                    $event === '' ? null : ($event as string)
+                            "
+                        >
+                            <SelectTrigger id="charge-service" class="w-full">
+                                <SelectValue placeholder="เลือกบริการ" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="service in props.services"
+                                    :key="service.item_code"
+                                    :value="service.item_code"
+                                >
+                                    {{ service.name }} —
+                                    {{ formatBaht(service.price) }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p
+                            v-if="selectedService"
+                            class="text-xs text-muted-foreground"
+                        >
+                            จะหักเครดิต
+                            {{ formatBaht(selectedService.price) }}
+                        </p>
+                        <InputError :message="chargeForm.errors.item_code" />
+                    </div>
+
+                    <div class="flex sm:pt-7">
+                        <Button
+                            type="submit"
+                            variant="destructive"
+                            :disabled="
+                                chargeForm.processing ||
+                                chargeForm.item_code === null
+                            "
+                        >
+                            <Scissors />
+                            หักเครดิต
+                        </Button>
+                    </div>
+                </form>
+            </CardContent>
+        </Card>
+
+        <!-- Refund + Adjust -->
+        <div class="grid gap-6 lg:grid-cols-2">
+            <!-- Refund paid credit -->
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2 text-base">
+                        <RotateCcw class="size-4 text-muted-foreground" />
+                        คืนเงิน
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <form class="flex flex-col gap-4" @submit.prevent="refund">
+                        <div class="grid gap-2">
+                            <Label for="refund-amount">จำนวนเงิน (บาท)</Label>
+                            <Input
+                                id="refund-amount"
+                                v-model="refundForm.amount"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                คืนได้เฉพาะเงินสดที่จ่ายมา (ไม่รวมโบนัส)
+                            </p>
+                            <InputError :message="refundForm.errors.amount" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="refund-note">เหตุผล</Label>
+                            <Input
+                                id="refund-note"
+                                v-model="refundForm.note"
+                                maxlength="255"
+                                placeholder="เช่น ลูกค้าขอคืนเงิน"
+                            />
+                            <InputError :message="refundForm.errors.note" />
+                        </div>
+                        <div class="flex justify-end">
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                :disabled="refundForm.processing"
+                            >
+                                <RotateCcw />
+                                คืนเงิน
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+
+            <!-- Owner adjust (signed) -->
+            <Card v-if="isOwner">
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2 text-base">
+                        <Settings2 class="size-4 text-muted-foreground" />
+                        ปรับยอดเครดิต
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <form class="flex flex-col gap-4" @submit.prevent="adjust">
+                        <div class="grid gap-2">
+                            <Label for="adjust-delta">
+                                ยอดปรับ (บาท, ใส่ค่าลบเพื่อหัก)
+                            </Label>
+                            <Input
+                                id="adjust-delta"
+                                v-model="adjustForm.delta"
+                                type="number"
+                                step="0.01"
+                                placeholder="เช่น 500 หรือ -50"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                ค่าบวก = เพิ่มเครดิต (เป็นโบนัส) · ค่าลบ = หัก
+                            </p>
+                            <InputError :message="adjustForm.errors.delta" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="adjust-note">เหตุผล</Label>
+                            <Input
+                                id="adjust-note"
+                                v-model="adjustForm.note"
+                                maxlength="255"
+                                placeholder="เช่น ชดเชยความผิดพลาด"
+                            />
+                            <InputError :message="adjustForm.errors.note" />
+                        </div>
+                        <div class="flex justify-end">
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                :disabled="adjustForm.processing"
+                            >
+                                <Settings2 />
+                                ปรับยอด
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- Credit lots -->
+        <Card>
+            <CardHeader>
+                <CardTitle class="text-base">ล็อตเครดิต</CardTitle>
             </CardHeader>
             <CardContent class="flex flex-col gap-4">
                 <div
-                    v-for="lot in props.member.member_packages"
+                    v-for="lot in props.lots"
                     :key="lot.id"
                     class="rounded-lg border border-border p-4"
+                    :class="
+                        lot.is_near_expiry
+                            ? 'border-l-4 border-l-[var(--color-warning)]'
+                            : ''
+                    "
                 >
                     <div
                         class="flex flex-wrap items-start justify-between gap-x-6 gap-y-2"
@@ -697,83 +791,99 @@ onUnmounted(() => {
                         <div class="flex flex-col gap-1 text-sm">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="font-medium">
-                                    ซื้อเมื่อ
-                                    {{ formatDate(lot.purchased_at) ?? '—' }}
+                                    {{ sourceLabel(lot.source) }} ·
+                                    {{ formatThaiDate(lot.purchased_at) }}
                                 </span>
-                                <Badge :variant="statusVariant(lot.status)">
-                                    {{ STATUS_LABEL[lot.status] }}
+                                <Badge
+                                    v-if="lot.is_near_expiry"
+                                    variant="secondary"
+                                >
+                                    ใกล้หมดอายุ
                                 </Badge>
                             </div>
                             <p class="text-muted-foreground">
                                 หมดอายุ:
                                 <span v-if="lot.expires_at">
-                                    {{ formatDate(lot.expires_at) }}
+                                    {{ formatThaiDate(lot.expires_at) }}
                                 </span>
                                 <span v-else>ไม่หมดอายุ</span>
                             </p>
+                            <p class="text-xs text-muted-foreground">
+                                เดิม: จ่าย {{ formatBaht(lot.amount_paid) }} ·
+                                โบนัส {{ formatBaht(lot.bonus_amount) }}
+                            </p>
                         </div>
-                        <p
-                            class="font-heading text-base font-bold tabular-nums"
-                        >
-                            {{ formatBaht(lot.price_paid) }}
-                        </p>
+                        <div class="text-right">
+                            <p
+                                class="font-heading text-base font-bold tabular-nums"
+                            >
+                                {{ formatBaht(lot.total_remaining) }}
+                            </p>
+                            <p class="text-xs text-muted-foreground">คงเหลือ</p>
+                        </div>
                     </div>
 
-                    <ul
-                        class="mt-3 flex flex-col gap-2 border-t border-border pt-3"
+                    <div
+                        class="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-3 text-sm"
                     >
-                        <li
-                            v-for="ent in lot.entitlements"
-                            :key="ent.id"
-                            class="flex items-center justify-between gap-4 text-sm"
-                        >
-                            <div class="flex items-center gap-2">
-                                <span>{{ ent.item_name }}</span>
-                                <Badge
-                                    :variant="statusVariant(ent.status)"
-                                    class="text-xs"
-                                >
-                                    {{ STATUS_LABEL[ent.status] }}
-                                </Badge>
-                            </div>
-                            <span
-                                class="font-heading font-semibold text-muted-foreground tabular-nums"
-                            >
-                                {{ ent.qty_remaining }} / {{ ent.qty_total }}
+                        <span class="text-muted-foreground">
+                            เงินสดคงเหลือ:
+                            <span class="font-medium text-foreground tabular-nums">
+                                {{ formatBaht(lot.paid_remaining) }}
                             </span>
-                        </li>
-                    </ul>
+                        </span>
+                        <span class="text-muted-foreground">
+                            โบนัสคงเหลือ:
+                            <span class="font-medium text-foreground tabular-nums">
+                                {{ formatBaht(lot.bonus_remaining) }}
+                            </span>
+                        </span>
+                    </div>
                 </div>
 
                 <p
-                    v-if="props.member.member_packages.length === 0"
+                    v-if="props.lots.length === 0"
                     class="py-6 text-center text-sm text-muted-foreground"
                 >
-                    ยังไม่มีแพ็คเกจที่ซื้อ — ใช้แผง “ขายแพ็คเกจ” ด้านบนเพื่อขาย
+                    ยังไม่มีเครดิตคงเหลือ — ใช้แผง “ขายเครดิต” ด้านบนเพื่อเติม
                 </p>
             </CardContent>
         </Card>
 
-        <!-- Redemption / ledger history -->
+        <!-- Wallet history -->
         <Card>
             <CardHeader>
                 <CardTitle
                     class="flex items-center gap-2 font-heading text-base"
                 >
                     <History class="size-4 text-muted-foreground" />
-                    ประวัติการตัดสิทธิ์
+                    ประวัติเครดิต
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                <!-- Transient: what the LAST redeem actually deducted (optional). -->
+                <!-- Transient: what the LAST wallet action moved (optional). -->
                 <div
-                    v-if="lastRedemption"
+                    v-if="lastResult"
                     class="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm"
                 >
-                    <Scissors
+                    <ArrowDownCircle
                         class="mt-0.5 size-4 shrink-0 text-muted-foreground"
                     />
-                    <span>{{ lastRedemption }}</span>
+                    <span>
+                        รายการล่าสุด
+                        <span
+                            class="font-heading font-semibold tabular-nums"
+                            :class="
+                                isNegative(lastResult.net_delta)
+                                    ? 'text-destructive'
+                                    : 'text-[var(--color-success)]'
+                            "
+                        >
+                            {{ formatSignedBaht(lastResult.net_delta) }}
+                        </span>
+                        · คงเหลือ
+                        {{ formatBaht(lastResult.balance_after) }}
+                    </span>
                 </div>
 
                 <div v-if="props.history.length > 0" class="overflow-x-auto">
@@ -783,8 +893,8 @@ onUnmounted(() => {
                                 class="border-b border-border text-left text-xs text-muted-foreground"
                             >
                                 <th class="py-2 pr-4 font-medium">เวลา</th>
-                                <th class="py-2 pr-4 font-medium">รายการ</th>
-                                <th class="py-2 pr-4 font-medium">เหตุผล</th>
+                                <th class="py-2 pr-4 font-medium">ประเภท</th>
+                                <th class="py-2 pr-4 font-medium">หมายเหตุ</th>
                                 <th class="py-2 pr-4 text-right font-medium">
                                     จำนวน
                                 </th>
@@ -803,10 +913,7 @@ onUnmounted(() => {
                                 <td
                                     class="py-2 pr-4 whitespace-nowrap text-muted-foreground tabular-nums"
                                 >
-                                    {{ formatDateTime(row.created_at) }}
-                                </td>
-                                <td class="py-2 pr-4">
-                                    {{ row.item_name ?? '—' }}
+                                    {{ formatThaiDateTime(row.created_at) }}
                                 </td>
                                 <td class="py-2 pr-4">
                                     <Badge
@@ -817,17 +924,22 @@ onUnmounted(() => {
                                     </Badge>
                                 </td>
                                 <td
+                                    class="py-2 pr-4 text-muted-foreground"
+                                >
+                                    {{ row.note ?? '—' }}
+                                </td>
+                                <td
                                     class="py-2 pr-4 text-right font-semibold tabular-nums"
                                     :class="
-                                        row.delta < 0
+                                        isNegative(row.delta)
                                             ? 'text-destructive'
-                                            : 'text-muted-foreground'
+                                            : 'text-[var(--color-success)]'
                                     "
                                 >
-                                    {{ formatDelta(row.delta) }}
+                                    {{ formatSignedBaht(row.delta) }}
                                 </td>
                                 <td class="py-2 pr-4 text-right tabular-nums">
-                                    {{ row.balance_after }}
+                                    {{ formatBaht(row.balance_after) }}
                                 </td>
                                 <td class="py-2 text-muted-foreground">
                                     {{ row.staff_name ?? '—' }}
@@ -841,7 +953,7 @@ onUnmounted(() => {
                     v-else
                     class="py-6 text-center text-sm text-muted-foreground"
                 >
-                    ยังไม่มีประวัติการตัดสิทธิ์
+                    ยังไม่มีประวัติเครดิต
                 </p>
             </CardContent>
         </Card>

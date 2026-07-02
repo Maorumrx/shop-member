@@ -20,3 +20,23 @@ export function formatBaht(value: number | string | null | undefined): string {
 
     return `฿${bahtFormatter.format(amount)}`;
 }
+
+/**
+ * A SIGNED baht amount for a ledger delta, e.g. `+฿1,000.00` / `-฿300.00` (zero
+ * renders bare `฿0.00`). The sign leads the ฿ symbol and the magnitude is always
+ * shown positive — never `฿-300.00`.
+ */
+export function formatSignedBaht(
+    value: number | string | null | undefined,
+): string {
+    const amount =
+        typeof value === 'number' ? value : Number.parseFloat(value ?? '0');
+
+    if (Number.isNaN(amount)) {
+        return '฿0.00';
+    }
+
+    const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+
+    return `${sign}${formatBaht(Math.abs(amount))}`;
+}

@@ -35,9 +35,10 @@ Schedule::command('bookings:remind')
     ->withoutOverlapping()
     ->runInBackground();
 
-// LINE near-expiry reminders: queue a reminder for active lots expiring within 7
-// days that still hold balance (idempotent via member_packages.expiry_reminded_at).
-// DAILY at 09:00 (a friendly morning nudge, not overnight). Chunked; background.
+// LINE near-expiry reminders: queue a reminder for active credit lots expiring
+// within 7 days that still hold balance (idempotent via credit_lots.expiry_reminded_at).
+// Expiry is OFF (all lots ship expires_at=null) so this currently matches nothing —
+// harmless. DAILY at 09:00 (a friendly morning nudge, not overnight). Chunked; background.
 Schedule::command('members:remind-expiry')
     ->dailyAt('09:00')
     ->withoutOverlapping()

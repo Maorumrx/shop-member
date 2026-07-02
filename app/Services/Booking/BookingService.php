@@ -6,13 +6,12 @@ namespace App\Services\Booking;
 
 use App\Enums\BookingOrigin;
 use App\Enums\BookingStatus;
-use App\Enums\ItemType;
 use App\Models\Booking;
 use App\Models\BranchBookingSetting;
 use App\Models\Member;
-use App\Models\PackageLine;
+use App\Models\Service;
 use App\Models\User;
-use App\Services\Redemption\RedemptionService;
+use App\Services\Wallet\WalletService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -32,8 +31,9 @@ use Illuminate\Support\Facades\DB;
  * UPDATE, then re-counts the slot against committed data — serialising all
  * concurrent creates for that branch, exactly like the redemption lock discipline.
  *
- * Redemption is NEVER performed here directly; check-in delegates to the existing
- * {@see RedemptionService} (threading the booking id so ledger rows link back, §7).
+ * Money is NEVER moved here directly; check-in delegates to the single money
+ * authority {@see WalletService} (threading the booking id so credit_ledger rows
+ * link back, §7).
  *
  * Time note: the app aliases Date to CarbonImmutable
  * (AppServiceProvider::configureDefaults), so `now()`/derived instants are
@@ -51,7 +51,7 @@ final class BookingService
     private const CAPACITY_HOLDING = [BookingStatus::Confirmed, BookingStatus::CheckedIn];
 
     public function __construct(
-        private readonly RedemptionService $redemptions,
+        private readonly WalletService $wallet,
     ) {
     }
 
@@ -230,19 +230,23 @@ final class BookingService
     }
 
     /**
-     * Check in a `confirmed` booking (§7) — the moment redemption runs.
+     * Check in a `confirmed` booking (§7) — the moment the wallet is charged.
      *
      * In ONE `DB::transaction`: assert status=confirmed, call
-     * {@see RedemptionService::redeem()} for the booking's `item_code` × 1 (scoped
-     * to the staff's home branch; owner = null = unscoped, §5.5), threading the
-     * booking id so every ledger row it writes carries `booking_id`. On success,
-     * settle the row on `completed` (stamping checked_in/completed audit). If
-     * `redeem()` throws (insufficient balance), the WHOLE txn rolls back and the
-     * booking STAYS confirmed — the error surfaces so staff can sell a package
-     * first, then retry.
+     * {@see WalletService::chargeService()} for the booking's `item_code` (which
+     * resolves the active service price and debits it FIFO), threading the booking
+     * id so every credit_ledger row it writes carries `booking_id`. On success,
+     * settle the row on `completed` (stamping checked_in/completed audit). If the
+     * charge throws — the member's balance is below the price
+     * ({@see \App\Exceptions\InsufficientCreditException}) or the service is not
+     * priced ({@see \App\Exceptions\WalletException}) — the WHOLE txn rolls back and
+     * the booking STAYS confirmed, so staff can top up (or price the service) then
+     * retry.
      *
-     * @throws BookingException           When not in `confirmed` state.
-     * @throws \App\Exceptions\RedemptionException  When the member has no balance
+     * @throws BookingException                        When not in `confirmed` state.
+     * @throws \App\Exceptions\InsufficientCreditException  When the balance is below the
+     *                                    price (rolls back — the booking stays confirmed).
+     * @throws \App\Exceptions\WalletException         When the item has no active price
      *                                    (rolls back — the booking stays confirmed).
      */
     public function checkIn(Booking $booking, User $staff): Booking
@@ -252,15 +256,15 @@ final class BookingService
                 throw BookingException::invalidTransition($booking, 'check_in');
             }
 
-            // Redemption runs here. bookingId stamps the ledger rows (§7). If the
-            // member has no balance this throws (RedemptionException) and the txn
-            // rolls back — the booking is untouched, still confirmed.
-            $this->redemptions->redeem(
+            // The wallet charge runs here. bookingId stamps the ledger rows (§7).
+            // branch_id is audit context only — the wallet is one fungible balance.
+            // If the member is short (or the service is unpriced) this throws and the
+            // txn rolls back — the booking is untouched, still confirmed.
+            $this->wallet->chargeService(
                 member: $booking->member,
                 itemCode: $booking->item_code,
-                qty: 1,                       // one slot = one service unit (v1)
                 staff: $staff,
-                branchId: $staff->branch_id,  // owner => null => unscoped (§5.5)
+                branchId: $staff->branch_id,
                 bookingId: $booking->id,
             );
 
@@ -297,29 +301,30 @@ final class BookingService
     }
 
     /**
-     * Distinct bookable SERVICES the frontend picker offers (§ brief).
+     * The bookable SERVICES the frontend picker offers, from the ACTIVE rows of the
+     * `services` price list (the money-wallet reframe: services replace package
+     * lines). Booking is independent of ownership — a member may book a service they
+     * don't yet hold credit for and top up at the counter on arrival (§3.2).
+     * Returned ordered by name.
      *
-     * The catalog's services: distinct `(item_code, item_name)` where
-     * `item_type = service` across ACTIVE packages' lines. Booking is independent
-     * of ownership — a member may book a service they don't yet own and buy it at
-     * the counter on arrival (§3.2). Returned ordered by name.
+     * The `item_name` key is kept (mapped from `services.name`) so the existing
+     * frontend picker keeps working; `price` is added for the check-in "will cost
+     * X" hint. All money is a decimal-2 STRING.
      *
-     * N+1 guard: a single grouped query (no hydration per line).
+     * N+1 guard: a single query, no per-row hydration.
      *
-     * @return list<array{item_code: string, item_name: string}>
+     * @return list<array{item_code: string, item_name: string, price: string}>
      */
     public function bookableServices(): array
     {
-        return PackageLine::query()
-            ->where('item_type', ItemType::Service)
-            // Only from packages currently on sale.
-            ->whereHas('package', fn ($q) => $q->where('is_active', true))
-            ->groupBy('item_code', 'item_name')
-            ->orderBy('item_name')
-            ->get(['item_code', 'item_name'])
-            ->map(fn (PackageLine $line): array => [
-                'item_code' => $line->item_code,
-                'item_name' => $line->item_name,
+        return Service::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['item_code', 'name', 'price'])
+            ->map(fn (Service $service): array => [
+                'item_code' => $service->item_code,
+                'item_name' => $service->name,
+                'price' => (string) $service->price,
             ])
             ->all();
     }
@@ -442,21 +447,19 @@ final class BookingService
     }
 
     /**
-     * Snapshot label for `$itemCode` from the ACTIVE bookable-services catalog
-     * (most-recent match). Null when the code isn't an active service — the caller
-     * falls back to the code itself (a member may book intent for something not
-     * currently in the catalog; §3.2).
+     * Snapshot label for `$itemCode` from the ACTIVE `services` price list. Null
+     * when the code isn't an active service — the caller falls back to the code
+     * itself (a member may book intent for something not currently priced; §3.2).
+     * `services.item_code` is globally unique, so at most one row matches.
      */
     private function resolveItemName(string $itemCode): ?string
     {
-        /** @var PackageLine|null $line */
-        $line = PackageLine::query()
+        /** @var Service|null $service */
+        $service = Service::query()
             ->where('item_code', $itemCode)
-            ->where('item_type', ItemType::Service)
-            ->whereHas('package', fn ($q) => $q->where('is_active', true))
-            ->orderByDesc('id')
-            ->first(['item_name']);
+            ->where('is_active', true)
+            ->first(['name']);
 
-        return $line?->item_name;
+        return $service?->name;
     }
 }

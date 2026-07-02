@@ -2,83 +2,118 @@
 
 declare(strict_types=1);
 
-// Phase 1 staged test — copied to tests/Feature/ and run AFTER scaffold via docker/phase1.sh.
-// Covers DB-engine-dependent integrity (architecture.md §3.7, §5.4):
-//   - CHECK constraint chk_ent_qty (qty_remaining >= 0) — MariaDB/MySQL only.
-//   - member RESTRICT FK on member_packages — MariaDB/MySQL only.
-// Both are SKIPPED on sqlite: the migration guards the CHECK with driver !== 'sqlite',
-// and sqlite FK enforcement differs (foreign_keys pragma / RESTRICT semantics).
+// DB-engine-dependent integrity for the credit-wallet schema (§5.4, §5.6). All are
+// MariaDB/MySQL-only and SKIPPED on sqlite: the migrations guard the CHECK statements
+// with `driver !== 'sqlite'`, and sqlite FK/RESTRICT semantics differ. These document
+// the production contract:
+//   - chk_credit_ledger_balance : balance_after >= 0
+//   - chk_credit_lots_amounts   : all money >= 0, paid_remaining <= amount_paid,
+//                                 bonus_remaining <= bonus_amount
+//   - members RESTRICT FK       : a member owning credit_lots cannot be hard-deleted
+//
+// Rows are hand-built here (NOT via WalletService) deliberately — the whole point is
+// to poke the DB with values the service would never emit, to prove the DB itself
+// rejects them.
 
-use App\Enums\EntitlementStatus;
-use App\Enums\ItemType;
-use App\Models\Branch;
-use App\Models\Entitlement;
+use App\Enums\CreditLotStatus;
+use App\Enums\CreditSource;
+use App\Models\CreditLot;
 use App\Models\Member;
-use App\Models\MemberPackage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
-it('rejects a negative qty_remaining via the chk_ent_qty CHECK constraint', function () {
-    $branch = Branch::create(['name' => 'CHK Branch', 'is_active' => true]);
-    $member = Member::create(['name' => 'CHK Member', 'is_active' => true]);
-    $lot = MemberPackage::create([
-        'member_id' => $member->id,
-        'branch_id' => $branch->id,
-        'purchased_at' => now(),
-        'expires_at' => now()->addMonth(),
-        'price_paid' => '100.00',
-        'status' => EntitlementStatus::Active,
-    ]);
+/** A plain member to own the lot/ledger rows under test. */
+function schemaMember(): Member
+{
+    return Member::create(['name' => 'Schema Member', 'is_active' => true]);
+}
 
-    // qty_remaining is an UNSIGNED column AND carries CHECK (qty_remaining >= 0).
-    // Writing a negative value must raise a DB query exception on MariaDB/MySQL.
-    expect(fn () => Entitlement::create([
-        'member_package_id' => $lot->id,
+/**
+ * A valid base credit_lots payload; override individual columns to violate a CHECK.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function schemaLotPayload(Member $member, array $overrides = []): array
+{
+    return array_merge([
         'member_id' => $member->id,
-        'item_code' => 'MASSAGE_60',
-        'item_name' => 'Thai Massage 60 min',
-        'item_type' => ItemType::Service,
-        'qty_total' => 10,
-        'qty_remaining' => -1,
-        'expires_at' => $lot->expires_at,
-        'status' => EntitlementStatus::Active,
+        'source' => CreditSource::Topup,
+        'amount_paid' => '1000.00',
+        'bonus_amount' => '100.00',
+        'paid_remaining' => '1000.00',
+        'bonus_remaining' => '100.00',
+        'expires_at' => null,
+        'status' => CreditLotStatus::Active,
+        'purchased_at' => now(),
+        'branch_id' => null,
+        'created_by_user_id' => null,
+    ], $overrides);
+}
+
+it('rejects a negative amount_paid via chk_credit_lots_amounts', function () {
+    $member = schemaMember();
+
+    expect(fn () => CreditLot::create(schemaLotPayload($member, [
+        'amount_paid' => '-1.00',
+        'paid_remaining' => '-1.00',
+    ])))->toThrow(Illuminate\Database\QueryException::class);
+})->skip(fn () => DB::getDriverName() === 'sqlite', 'CHECK constraint requires MariaDB/MySQL (guarded off on sqlite).');
+
+it('rejects paid_remaining greater than amount_paid via chk_credit_lots_amounts', function () {
+    $member = schemaMember();
+
+    // A remaining can never exceed its frozen original — a debit/refund only reduces it.
+    expect(fn () => CreditLot::create(schemaLotPayload($member, [
+        'amount_paid' => '100.00',
+        'paid_remaining' => '150.00',
+    ])))->toThrow(Illuminate\Database\QueryException::class);
+})->skip(fn () => DB::getDriverName() === 'sqlite', 'CHECK constraint requires MariaDB/MySQL (guarded off on sqlite).');
+
+it('rejects bonus_remaining greater than bonus_amount via chk_credit_lots_amounts', function () {
+    $member = schemaMember();
+
+    expect(fn () => CreditLot::create(schemaLotPayload($member, [
+        'bonus_amount' => '50.00',
+        'bonus_remaining' => '80.00',
+    ])))->toThrow(Illuminate\Database\QueryException::class);
+})->skip(fn () => DB::getDriverName() === 'sqlite', 'CHECK constraint requires MariaDB/MySQL (guarded off on sqlite).');
+
+it('rejects a negative balance_after via chk_credit_ledger_balance', function () {
+    $member = schemaMember();
+    $lot = CreditLot::create(schemaLotPayload($member));
+
+    // Insert a raw ledger row with a negative running balance — the CHECK must block it.
+    expect(fn () => DB::table('credit_ledger')->insert([
+        'member_id' => $member->id,
+        'credit_lot_id' => $lot->id,
+        'delta' => '-9999.00',
+        'reason' => 'debit',
+        'balance_after' => '-1.00',
+        'booking_id' => null,
+        'staff_id' => null,
+        'note' => null,
+        'created_at' => now(),
     ]))->toThrow(Illuminate\Database\QueryException::class);
-})->skip(fn () => DB::getDriverName() === 'sqlite', 'CHECK constraint requires MariaDB/MySQL (guarded off on sqlite in the migration).');
+})->skip(fn () => DB::getDriverName() === 'sqlite', 'CHECK constraint requires MariaDB/MySQL (guarded off on sqlite).');
 
-it('forbids hard-deleting a member that owns member_packages (RESTRICT FK)', function () {
-    $branch = Branch::create(['name' => 'FK Branch', 'is_active' => true]);
-    $member = Member::create(['name' => 'FK Member', 'is_active' => true]);
-    MemberPackage::create([
-        'member_id' => $member->id,
-        'branch_id' => $branch->id,
-        'purchased_at' => now(),
-        'expires_at' => now()->addMonth(),
-        'price_paid' => '100.00',
-        'status' => EntitlementStatus::Active,
-    ]);
+it('forbids hard-deleting a member that owns credit_lots (RESTRICT FK)', function () {
+    $member = schemaMember();
+    CreditLot::create(schemaLotPayload($member));
 
-    // members.id is referenced by member_packages.member_id ON DELETE RESTRICT (§5.4).
-    // A raw hard DELETE (bypassing SoftDeletes) must be blocked by the FK on MariaDB/MySQL.
+    // members.id is referenced by credit_lots.member_id ON DELETE RESTRICT (§5.4).
+    // A raw hard DELETE (bypassing SoftDeletes) must be blocked by the FK.
     expect(fn () => DB::table('members')->where('id', $member->id)->delete())
         ->toThrow(Illuminate\Database\QueryException::class);
 
-    // The member row must still be present after the blocked delete.
     expect(DB::table('members')->where('id', $member->id)->count())->toBe(1);
 })->skip(fn () => DB::getDriverName() === 'sqlite', 'RESTRICT FK enforcement differs on sqlite; requires MariaDB/MySQL.');
 
 it('forces forceDelete() of a member with lots to fail under RESTRICT', function () {
-    $branch = Branch::create(['name' => 'Force Branch', 'is_active' => true]);
-    $member = Member::create(['name' => 'Force Member', 'is_active' => true]);
-    MemberPackage::create([
-        'member_id' => $member->id,
-        'branch_id' => $branch->id,
-        'purchased_at' => now(),
-        'expires_at' => now()->addMonth(),
-        'price_paid' => '100.00',
-        'status' => EntitlementStatus::Active,
-    ]);
+    $member = schemaMember();
+    CreditLot::create(schemaLotPayload($member));
 
     // forceDelete() issues a real DELETE through Eloquent — still blocked by the FK.
     expect(fn () => $member->forceDelete())

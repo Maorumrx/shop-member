@@ -64,8 +64,8 @@ class StoreBookingRequest extends FormRequest
     }
 
     /**
-     * Reject booking for an inactive member (mirrors StorePurchaseRequest, §3.3,
-     * §5.4). The service re-guards member status inside create().
+     * Reject booking for an inactive member (mirrors the wallet action requests,
+     * §3.3, §5.4). The service re-guards member status inside create().
      *
      * @param  \Illuminate\Validation\Validator  $validator
      */

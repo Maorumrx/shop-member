@@ -72,7 +72,8 @@ it('dispatches NOTHING for a member without a linked LINE id', function () {
 
     notifier()->welcome($member);
     notifier()->linked($member);
-    notifier()->redemptionReceipt($member, 'MASSAGE_60', 1, 4);
+    notifier()->topupReceipt($member, '1000.00');
+    notifier()->serviceChargeReceipt($member, 'นวดไทย', '350.00', '650.00');
 
     Queue::assertNothingPushed();
 });
@@ -87,12 +88,22 @@ it('dispatches a SendLineMessage on welcome for a LINE-linked member', function 
     Queue::assertPushed(SendLineMessage::class, 1);
 });
 
-it('dispatches a SendLineMessage on redemptionReceipt for a LINE-linked member', function () {
+it('dispatches a SendLineMessage on serviceChargeReceipt for a LINE-linked member', function () {
     Queue::fake();
 
     $member = notifierMember(NOTIFIER_SUB);
 
-    notifier()->redemptionReceipt($member, 'MASSAGE_60', 2, 8);
+    notifier()->serviceChargeReceipt($member, 'นวดไทย', '350.00', '650.00');
+
+    Queue::assertPushed(SendLineMessage::class, 1);
+});
+
+it('dispatches a SendLineMessage on topupReceipt for a LINE-linked member', function () {
+    Queue::fake();
+
+    $member = notifierMember(NOTIFIER_SUB);
+
+    notifier()->topupReceipt($member, '1000.00');
 
     Queue::assertPushed(SendLineMessage::class, 1);
 });

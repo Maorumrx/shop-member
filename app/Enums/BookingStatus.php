@@ -6,7 +6,7 @@ namespace App\Enums;
 
 /**
  * Lifecycle vocabulary for `bookings.status` (docs/phase7-booking-design.md §4).
- * String-backed, same style as {@see EntitlementStatus}/{@see LedgerReason}.
+ * String-backed, same style as {@see CreditLotStatus}/{@see CreditLedgerReason}.
  *
  * v1 uses AUTO-CONFIRM: a new booking is created directly as `confirmed`
  * (holding the slot immediately). The design's `pending` status is DROPPED from

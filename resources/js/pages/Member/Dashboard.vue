@@ -8,8 +8,8 @@
  *
  * Vertical order: greeting → balance hero → active lots → history → a demoted
  * (low-emphasis) logout at the very bottom. Every number comes from the backend
- * (DashboardController + the shared MemberEntitlementQuery); the history feed
- * carries NO staff names.
+ * (DashboardController + the shared MemberWalletQuery); the balance + history are
+ * in baht, and the history feed carries NO staff names.
  *
  * Motion: staggered CSS entrance (fade + rise) with ~60–80ms delay increments,
  * capped ~350ms; all animation collapses to its final state under
@@ -23,17 +23,16 @@ import MemberHistoryList from '@/components/member/MemberHistoryList.vue';
 import MemberLotCard from '@/components/member/MemberLotCard.vue';
 import MemberLayout from '@/layouts/MemberLayout.vue';
 import type {
-    BalanceLine,
-    MemberHistoryRow,
-    MemberLot,
     MemberProfile,
+    MemberWalletHistoryRow,
+    WalletLot,
 } from '@/types/members';
 
 defineProps<{
     member: MemberProfile;
-    balanceByType: BalanceLine[];
-    lots: MemberLot[];
-    history: MemberHistoryRow[];
+    balance: string;
+    lots: WalletLot[];
+    history: MemberWalletHistoryRow[];
 }>();
 
 function logout(): void {
@@ -71,7 +70,7 @@ function goToBooking(): void {
 
             <!-- Balance hero -->
             <div class="member-in" style="--delay: 60ms">
-                <MemberBalanceCard :balance-by-type="balanceByType" />
+                <MemberBalanceCard :balance="balance" />
             </div>
 
             <!-- Active lots -->
@@ -85,7 +84,7 @@ function goToBooking(): void {
                     class="member-in font-heading text-sm font-semibold text-[var(--color-ink-muted)]"
                     style="--delay: 120ms"
                 >
-                    แพ็กเกจของคุณ
+                    เครดิตของคุณ
                 </h2>
                 <div
                     v-for="(lot, i) in lots"

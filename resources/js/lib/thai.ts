@@ -102,14 +102,21 @@ export function formatThaiTimeRange(
 }
 
 /**
- * Thai labels for the member-facing ledger reasons. Centralized so translations
- * don't drift across surfaces. Open-ended callers should fall back to the raw
- * reason string for any backend-added reason.
+ * Thai labels for the wallet ledger reasons (App\Enums\CreditLedgerReason).
+ * Centralized so the member feed and the admin history can't drift apart in
+ * wording. Open-ended callers fall back to the raw reason string for any
+ * backend-added reason.
  */
-export const REASON_LABELS: Record<'redeem' | 'expire' | 'refund', string> = {
-    redeem: 'ใช้บริการ',
+export const REASON_LABELS: Record<
+    'topup' | 'bonus' | 'debit' | 'refund' | 'expire' | 'adjust',
+    string
+> = {
+    topup: 'เติมเงิน',
+    bonus: 'โบนัส',
+    debit: 'ใช้บริการ',
+    refund: 'คืนเงิน',
     expire: 'หมดอายุ',
-    refund: 'คืนสิทธิ์',
+    adjust: 'ปรับยอด',
 };
 
 /** Reason label with a raw-string fallback for any unmapped backend reason. */

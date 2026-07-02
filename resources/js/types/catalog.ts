@@ -1,8 +1,11 @@
 /**
- * Phase 3 — Admin Package Catalog shared types.
+ * Phase 3 (credit-wallet reframe) — Admin catalog shared types.
  *
  * These mirror the Inertia props sent by App\Http\Controllers\Admin\
- * {Branch,Package}Controller. Keep them in sync with the backend contract.
+ * {Branch,Service,TopupOffer}Controller. The old Package catalog is gone; the
+ * money wallet replaces it with two catalogs: `services` (the baht price list the
+ * debit path consumes) and `topup_offers` (sell-screen presets). Money is a
+ * decimal-2 STRING throughout (§5.6) — render it with `formatBaht`.
  */
 
 /** A Laravel length-aware paginator, narrowed to what the admin tables use. */
@@ -50,42 +53,50 @@ export type BranchRow = {
     booking: BranchBooking | null;
 };
 
-/** A minimal active-branch option used by the package picker/filter. */
+/** A minimal active-branch option used by the service picker/filter. */
 export type BranchOption = {
     id: number;
     name: string;
 };
 
-export type PackageLineType = 'service' | 'addon';
+/* ── Services (the baht price list) ──────────────────────────────────────── */
 
-/** A package row in Admin/Packages/Index. */
-export type PackageRow = {
+/**
+ * A service row in Admin/Services/Index (the paginated price list). `price` is a
+ * decimal-2 string (or number); `branch` is the eager-loaded scope (null =
+ * any-branch price). `item_code` is globally unique.
+ */
+export type ServiceRow = {
     id: number;
-    name: string;
-    price: number | string;
-    valid_days: number | null;
-    branch: BranchOption | null;
-    is_active: boolean;
-    lines_count: number;
-};
-
-/** A single line as returned on the Edit page. */
-export type PackageLine = {
-    id?: number;
     item_code: string;
-    item_name: string;
-    item_type: PackageLineType;
-    qty: number;
-    redeem_group: string | null;
+    name: string;
+    price: string | number;
+    is_active: boolean;
+    branch: BranchOption | null;
 };
 
-/** The full package payload for the Edit page. */
-export type PackageDetail = {
+/** The full service payload for the Edit page (the raw model). */
+export type ServiceDetail = {
     id: number;
+    item_code: string;
     name: string;
-    price: number | string;
-    valid_days: number | null;
+    price: string | number;
     branch_id: number | null;
     is_active: boolean;
-    lines: PackageLine[];
+};
+
+/* ── Top-up offers (sell-screen presets) ─────────────────────────────────── */
+
+/**
+ * A top-up preset row in Admin/TopupOffers/Index. `amount` is the cash the
+ * customer pays; `bonus` is the promotional add-on (spendable = amount + bonus).
+ * Both are decimal-2 strings (or numbers). Managed inline (no dedicated pages).
+ */
+export type TopupOfferRow = {
+    id: number;
+    name: string;
+    amount: string | number;
+    bonus: string | number;
+    is_active: boolean;
+    sort_order: number;
 };

@@ -30,6 +30,7 @@ import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 import MemberBookingStatusBadge from '@/components/member/MemberBookingStatusBadge.vue';
 import MemberLayout from '@/layouts/MemberLayout.vue';
+import { formatBaht } from '@/lib/money';
 import { formatThaiDate, formatThaiTimeRange } from '@/lib/thai';
 import { isCancellable } from '@/types/bookings';
 import type {
@@ -469,7 +470,7 @@ function cancel(booking: MemberBookingRow): void {
                                 v-for="service in services"
                                 :key="service.item_code"
                                 type="button"
-                                class="member-tap rounded-full border px-4 py-2 text-sm"
+                                class="member-tap flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm"
                                 :class="
                                     selectedService === service.item_code
                                         ? 'border-[var(--color-primary-strong)] bg-[var(--color-member-accent)] text-[var(--color-ink)]'
@@ -480,7 +481,12 @@ function cancel(booking: MemberBookingRow): void {
                                 "
                                 @click="selectedService = service.item_code"
                             >
-                                {{ service.item_name }}
+                                <span>{{ service.item_name }}</span>
+                                <span
+                                    class="font-heading font-semibold tabular-nums text-[var(--color-ink-muted)]"
+                                >
+                                    {{ formatBaht(service.price) }}
+                                </span>
                             </button>
                         </div>
 

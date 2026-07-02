@@ -3,15 +3,16 @@
 use App\Http\Controllers\Admin\BookingController;
 use App\Http\Controllers\Admin\BranchController;
 use App\Http\Controllers\Admin\MemberController;
-use App\Http\Controllers\Admin\PackageController;
-use App\Http\Controllers\Admin\PurchaseController;
-use App\Http\Controllers\Admin\RedemptionController;
+use App\Http\Controllers\Admin\MemberWalletController;
+use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\ShopSettingController;
+use App\Http\Controllers\Admin\TopupController;
+use App\Http\Controllers\Admin\TopupOfferController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Admin catalog routes (Phase 3) — Branches + Packages
+| Admin catalog routes — Branches + Services + Top-up offers
 |--------------------------------------------------------------------------
 |
 | Catalog management is OWNER-ONLY (architecture.md §3.2): every route sits
@@ -19,6 +20,11 @@ use Illuminate\Support\Facades\Route;
 | default (`web`/`users`) admin guard, `role:owner` (EnsureUserRole) gates by
 | role. Loaded under the `web` middleware group from bootstrap/app.php so
 | sessions + CSRF + Inertia sharing apply, mirroring how member.php is wired.
+|
+| The credit-wallet reframe replaced the Package catalog with two catalogs:
+| `services.*` (the baht price list the debit path consumes) and
+| `topup-offers.*` (sell-screen presets). Owner-only, mirroring the old
+| `packages.*` authorization.
 |
 */
 
@@ -35,14 +41,27 @@ Route::middleware(['auth', 'verified', 'role:owner'])->group(function () {
     // like the rest of the catalog; the index manages it inline via a modal.
     Route::put('branches/{branch}/booking-settings', [BranchController::class, 'updateBookingSettings'])->name('branches.booking-settings.update');
 
-    // Packages — full resource with nested package_lines, plus an is_active toggle.
-    Route::get('packages', [PackageController::class, 'index'])->name('packages.index');
-    Route::get('packages/create', [PackageController::class, 'create'])->name('packages.create');
-    Route::post('packages', [PackageController::class, 'store'])->name('packages.store');
-    Route::get('packages/{package}/edit', [PackageController::class, 'edit'])->name('packages.edit');
-    Route::put('packages/{package}', [PackageController::class, 'update'])->name('packages.update');
-    Route::delete('packages/{package}', [PackageController::class, 'destroy'])->name('packages.destroy');
-    Route::patch('packages/{package}/toggle', [PackageController::class, 'toggle'])->name('packages.toggle');
+    // Services — the baht price list (mirrors the old packages resource shape):
+    // full CRUD + an is_active toggle. `item_code` is globally unique.
+    Route::get('services', [ServiceController::class, 'index'])->name('services.index');
+    Route::get('services/create', [ServiceController::class, 'create'])->name('services.create');
+    Route::post('services', [ServiceController::class, 'store'])->name('services.store');
+    Route::get('services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
+    Route::put('services/{service}', [ServiceController::class, 'update'])->name('services.update');
+    Route::delete('services/{service}', [ServiceController::class, 'destroy'])->name('services.destroy');
+    Route::patch('services/{service}/toggle', [ServiceController::class, 'toggle'])->name('services.toggle');
+
+    // Top-up offers — sell-screen presets managed inline on the index (no dedicated
+    // create/edit pages), plus an is_active toggle.
+    Route::get('topup-offers', [TopupOfferController::class, 'index'])->name('topup-offers.index');
+    Route::post('topup-offers', [TopupOfferController::class, 'store'])->name('topup-offers.store');
+    Route::put('topup-offers/{topupOffer}', [TopupOfferController::class, 'update'])->name('topup-offers.update');
+    Route::delete('topup-offers/{topupOffer}', [TopupOfferController::class, 'destroy'])->name('topup-offers.destroy');
+    Route::patch('topup-offers/{topupOffer}/toggle', [TopupOfferController::class, 'toggle'])->name('topup-offers.toggle');
+
+    // Wallet ADJUST is OWNER-ONLY (the highest-trust wallet action): a signed manual
+    // correction. Sits in the owner group; charge/refund are in the owner+staff group.
+    Route::post('members/{member}/wallet/adjust', [MemberWalletController::class, 'adjust'])->name('members.wallet.adjust');
 
     // Shop brand settings — owner-editable shop name + logo that replace the
     // hardcoded starter-kit name/logo in the sidebar. Logo upload is multipart,
@@ -55,18 +74,20 @@ Route::middleware(['auth', 'verified', 'role:owner'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Admin sales routes (Phase 4) — Members + Purchases
+| Admin sales routes — Members + Top-ups + Wallet actions
 |--------------------------------------------------------------------------
 |
 | Selling + member management is OWNER AND STAFF (architecture.md §3.2): staff
-| are front-desk operators who perform sales/redemptions. This group sits behind
+| are front-desk operators who perform top-ups/charges. This group sits behind
 | ['auth', 'verified', 'role:owner,staff'] — the `role` alias (EnsureUserRole)
 | accepts a CSV allow-list. Kept SEPARATE from the owner-only catalog group above
 | so the catalog stays locked to owners while the counter can sell.
 |
-| Member detail (members.show) renders owned lots + the live balance and is also
-| where a sale is initiated; the sale POSTs to members.purchases.store, which
-| mints the lot + entitlements + purchase ledger rows atomically (PurchaseService).
+| Member detail (members.show) renders the wallet balance + active credit lots and
+| is where a top-up/charge is initiated. Top-up POSTs to members.topups.store
+| (mints a credit_lot + opening ledger rows via WalletService::topUp); a manual
+| charge/refund POSTs to members.wallet.charge/refund (WalletService debit/refund).
+| Wallet ADJUST is owner-only and lives in the catalog group above.
 |
 */
 
@@ -85,22 +106,24 @@ Route::middleware(['auth', 'verified', 'role:owner,staff'])->group(function () {
     // already LINE-linked / inactive / deleted.
     Route::post('members/{member}/link-code', [MemberController::class, 'generateLinkCode'])->name('members.link-code');
 
-    // Sell a package to a member (the Phase-4 core). Atomic mint via PurchaseService.
-    Route::post('members/{member}/purchases', [PurchaseController::class, 'store'])->name('members.purchases.store');
+    // Sell credit to a member (the top-up core). Accepts a preset (topup_offer_id) OR
+    // a custom amount_paid + bonus_amount; atomic mint via WalletService::topUp.
+    Route::post('members/{member}/topups', [TopupController::class, 'store'])->name('members.topups.store');
 
-    // Redeem (ตัดสิทธิ์) a member's entitlements (the Phase-5 revenue core). Atomic,
-    // lock-protected FIFO consumption via RedemptionService — decrement + one redeem
-    // ledger row per touched entitlement, coupled redeem_group siblings, lot rollup.
-    // Branch context = the acting staff's home branch (owner = null = unscoped, §5.5).
-    Route::post('members/{member}/redemptions', [RedemptionController::class, 'store'])->name('members.redemptions.store');
+    // Manual wallet actions on a member (owner+staff): charge the price of a service
+    // (WalletService::chargeService) and refund PAID credit (WalletService::refund).
+    // A domain failure (insufficient / unpriced / over-refund) returns a 422. Wallet
+    // ADJUST is owner-only (members.wallet.adjust, in the catalog group above).
+    Route::post('members/{member}/wallet/charge', [MemberWalletController::class, 'charge'])->name('members.wallet.charge');
+    Route::post('members/{member}/wallet/refund', [MemberWalletController::class, 'refund'])->name('members.wallet.refund');
 
     // Bookings (จองคิว, Phase 7 — counter/day-view). Owner sees any branch; staff
-    // are pinned to their home branch (§5.5). Check-in runs redemption via the
-    // existing RedemptionService (stamping booking_id) and completes the booking;
-    // insufficient balance rolls back and asks staff to sell a package first (§7).
+    // are pinned to their home branch (§5.5). Check-in charges the wallet via
+    // WalletService (stamping booking_id) and completes the booking; insufficient
+    // balance rolls back and asks staff to top up first (§7).
     //   - index    day view: bookings for a branch + date + the slot availability.
     //   - store    staff books on behalf of a member (created_via=staff).
-    //   - checkIn  redeem + complete (POST).
+    //   - checkIn  charge wallet + complete (POST).
     //   - noShow   confirmed → no_show (POST).
     //   - cancel   confirmed → cancelled (DELETE).
     Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');

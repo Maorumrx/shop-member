@@ -1,24 +1,22 @@
 <script setup lang="ts">
 /**
- * MemberBalanceCard — the dashboard HERO: the member's live "remaining by type"
- * balance. Big, legible ink numbers on the warm surface.
+ * MemberBalanceCard — the dashboard HERO: the member's single spendable credit
+ * balance, in baht. One big, legible ink number on the warm surface (the money
+ * wallet has ONE balance now — no per-type breakdown).
  *
- * Layout: exactly one type → a centered hero row; 2–5 types → a vertical stack
- * with thin member-border dividers (numbers stay LARGE — we deliberately do NOT
- * shrink into a grid). Empty → a soft, neutral state (no red).
- *
- * a11y: the remaining number is `--color-ink` (NOT accent) so it is legible; the
- * accent token appears only as a small decorative chip per row.
+ * a11y: the balance is `--color-ink` (NOT accent) so it stays legible; the accent
+ * token appears only as a small decorative chip.
  */
 import { Wallet } from '@lucide/vue';
 import { computed } from 'vue';
-import type { BalanceLine } from '@/types/members';
+import { formatBaht } from '@/lib/money';
 
 const props = defineProps<{
-    balanceByType: BalanceLine[];
+    /** The spendable wallet balance as a decimal-2 STRING (e.g. "1290.00"). */
+    balance: string;
 }>();
 
-const isSingle = computed(() => props.balanceByType.length === 1);
+const isEmpty = computed(() => Number.parseFloat(props.balance ?? '0') <= 0);
 </script>
 
 <template>
@@ -30,32 +28,34 @@ const isSingle = computed(() => props.balanceByType.length === 1);
             id="member-balance-title"
             class="font-heading text-sm font-semibold text-[var(--color-ink-muted)]"
         >
-            สิทธิ์คงเหลือของคุณ
+            เครดิตคงเหลือ
         </h2>
 
         <!-- Empty: neutral soft state, never red. -->
         <div
-            v-if="balanceByType.length === 0"
+            v-if="isEmpty"
             class="mt-5 flex flex-col items-center gap-3 py-4 text-center"
         >
             <span
                 class="flex size-14 items-center justify-center rounded-full bg-[var(--color-member-accent)]"
             >
-                <Wallet class="size-6 text-[var(--color-ink)]" aria-hidden="true" />
+                <Wallet
+                    class="size-6 text-[var(--color-ink)]"
+                    aria-hidden="true"
+                />
             </span>
-            <p class="font-heading text-base font-semibold text-[var(--color-ink)]">
-                ยังไม่มีสิทธิ์คงเหลือ
+            <p
+                class="font-heading text-base font-semibold text-[var(--color-ink)]"
+            >
+                ยังไม่มีเครดิต
             </p>
             <p class="text-sm text-[var(--color-ink-muted)]">
-                เมื่อซื้อแพ็กเกจ สิทธิ์จะแสดงที่นี่
+                เมื่อเติมเครดิต ยอดจะแสดงที่นี่
             </p>
         </div>
 
-        <!-- Single type: centered hero. -->
-        <div
-            v-else-if="isSingle"
-            class="mt-4 flex flex-col items-center gap-1 text-center"
-        >
+        <!-- Balance hero. -->
+        <div v-else class="mt-4 flex flex-col items-center gap-1 text-center">
             <span
                 class="mb-2 h-1.5 w-10 rounded-full bg-[var(--color-member-accent)]"
                 aria-hidden="true"
@@ -63,48 +63,11 @@ const isSingle = computed(() => props.balanceByType.length === 1);
             <p
                 class="font-heading text-5xl font-semibold text-[var(--color-ink)] tabular-nums"
             >
-                {{ balanceByType[0].remaining }}
-                <span
-                    class="font-sans text-lg font-normal text-[var(--color-ink-muted)]"
-                >
-                    ครั้ง
-                </span>
+                {{ formatBaht(props.balance) }}
             </p>
-            <p class="text-base font-medium text-[var(--color-ink)]">
-                {{ balanceByType[0].item_name }}
+            <p class="text-sm text-[var(--color-ink-muted)]">
+                ใช้จ่ายได้ทุกบริการ
             </p>
         </div>
-
-        <!-- 2–5 types: vertical stack, numbers kept large. -->
-        <ul v-else class="mt-4 flex flex-col">
-            <li
-                v-for="(line, i) in balanceByType"
-                :key="line.item_code"
-                class="flex items-center justify-between gap-4 py-3"
-                :class="
-                    i > 0 ? 'border-t border-[var(--color-member-border)]' : ''
-                "
-            >
-                <div class="flex items-center gap-3">
-                    <span
-                        class="h-8 w-1.5 shrink-0 rounded-full bg-[var(--color-member-accent)]"
-                        aria-hidden="true"
-                    />
-                    <span class="text-base font-medium text-[var(--color-ink)]">
-                        {{ line.item_name }}
-                    </span>
-                </div>
-                <p
-                    class="font-heading text-4xl font-semibold text-[var(--color-ink)] tabular-nums"
-                >
-                    {{ line.remaining }}
-                    <span
-                        class="font-sans text-sm font-normal text-[var(--color-ink-muted)]"
-                    >
-                        ครั้ง
-                    </span>
-                </p>
-            </li>
-        </ul>
     </section>
 </template>

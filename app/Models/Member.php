@@ -16,9 +16,8 @@ use Illuminate\Notifications\Notifiable;
  * nullable `password`) and admin-created counter accounts (link LINE later).
  *
  * Members are NEVER hard-deleted: this model uses SoftDeletes and every child
- * FK (member_packages, entitlements, entitlement_ledger) is ON DELETE RESTRICT
- * to protect the append-only financial/audit ledger (§5.4). Disable via
- * `is_active = false`.
+ * FK (credit_lots, credit_ledger) is ON DELETE RESTRICT to protect the
+ * append-only financial/audit ledger (§5.4). Disable via `is_active = false`.
  *
  * @property int $id
  * @property string|null $line_user_id
@@ -83,41 +82,6 @@ class Member extends Authenticatable
     }
 
     /**
-     * Owned lots (one row per purchase).
-     *
-     * N+1: the member dashboard renders lots and their items — eager-load with
-     * `Member::with(['memberPackages.entitlements'])` (§6.4).
-     *
-     * @return HasMany<MemberPackage, $this>
-     */
-    public function memberPackages(): HasMany
-    {
-        return $this->hasMany(MemberPackage::class);
-    }
-
-    /**
-     * Per-item entitlements held by this member (denormalized `member_id` so
-     * the hot redemption query needs no lot join, §3.7).
-     *
-     * @return HasMany<Entitlement, $this>
-     */
-    public function entitlements(): HasMany
-    {
-        return $this->hasMany(Entitlement::class);
-    }
-
-    /**
-     * Member-level ledger movements (denormalized `member_id` for statements
-     * without a join). Serves the activity feed via I6 `(member_id, created_at)`.
-     *
-     * @return HasMany<EntitlementLedger, $this>
-     */
-    public function ledgerEntries(): HasMany
-    {
-        return $this->hasMany(EntitlementLedger::class);
-    }
-
-    /**
      * LINE claim codes minted for this member (docs/member-line-linking-design.md
      * §2). Mostly dead rows (consumed/expired) retained for audit; at most ONE is
      * live at a time (service-enforced supersede, MemberLinkService::generate()).
@@ -129,5 +93,32 @@ class Member extends Authenticatable
     public function linkCodes(): HasMany
     {
         return $this->hasMany(MemberLinkCode::class);
+    }
+
+    /**
+     * Credit-wallet lots owned by this member — one row per top-up batch (the
+     * money-wallet reframe of `memberPackages`). RESTRICT on delete protects the
+     * financial record (§5.4).
+     *
+     * N+1: the member dashboard renders active lots — eager-load with
+     * `Member::with('creditLots')` (scope with `->active()`).
+     *
+     * @return HasMany<CreditLot, $this>
+     */
+    public function creditLots(): HasMany
+    {
+        return $this->hasMany(CreditLot::class);
+    }
+
+    /**
+     * Member-level money-ledger movements (denormalized `member_id` for statements
+     * without a join). Serves the wallet activity feed via
+     * idx_credit_ledger_member_created `(member_id, created_at)`.
+     *
+     * @return HasMany<CreditLedger, $this>
+     */
+    public function creditLedgerEntries(): HasMany
+    {
+        return $this->hasMany(CreditLedger::class);
     }
 }

@@ -2,129 +2,101 @@
 
 declare(strict_types=1);
 
-// Phase 1 staged test — copied to tests/Feature/ and run AFTER scaffold via docker/phase1.sh.
-// Covers enum casts (architecture.md §3.7, §3.8, §5.7): Entitlement::status →
-// EntitlementStatus, MemberPackage::status → EntitlementStatus, Entitlement::item_type
-// → ItemType, EntitlementLedger::reason → LedgerReason — all round-trip through the DB.
+// Enum casts for the credit-wallet models (the money-wallet reframe of the dropped
+// Entitlement enum-cast test): CreditLot::source → CreditSource, CreditLot::status →
+// CreditLotStatus, CreditLedger::reason → CreditLedgerReason — all round-trip through
+// the DB. The "happy path" uses a REAL WalletService::topUp so the natural casts
+// (topup source, active status, topup/bonus reasons) are proven end-to-end; the
+// exhaustive per-case round-trips build rows directly to cover every backing value.
 
-use App\Enums\EntitlementStatus;
-use App\Enums\ItemType;
-use App\Enums\LedgerReason;
-use App\Models\Branch;
-use App\Models\Entitlement;
-use App\Models\EntitlementLedger;
+use App\Enums\CreditLedgerReason;
+use App\Enums\CreditLotStatus;
+use App\Enums\CreditSource;
+use App\Models\CreditLedger;
+use App\Models\CreditLot;
 use App\Models\Member;
-use App\Models\MemberPackage;
+use App\Services\Wallet\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->branch = Branch::create(['name' => 'Enum Branch', 'is_active' => true]);
     $this->member = Member::create(['name' => 'Enum Member', 'is_active' => true]);
-    $this->lot = MemberPackage::create([
-        'member_id' => $this->member->id,
-        'branch_id' => $this->branch->id,
-        'purchased_at' => now(),
-        'expires_at' => now()->addMonth(),
-        'price_paid' => '750.00',
-        'status' => EntitlementStatus::Active,
-    ]);
 });
 
 /**
+ * A base credit_lots payload for the exhaustive round-trips.
+ *
  * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
  */
-function makeEnumEntitlement(MemberPackage $lot, array $overrides = []): Entitlement
+function enumCastLotPayload(Member $member, array $overrides = []): array
 {
-    return Entitlement::create(array_merge([
-        'member_package_id' => $lot->id,
-        'member_id' => $lot->member_id,
-        'item_code' => 'HOT_STONE',
-        'item_name' => 'Hot Stone Add-on',
-        'item_type' => ItemType::Addon,
-        'qty_total' => 5,
-        'qty_remaining' => 5,
-        'expires_at' => $lot->expires_at,
-        'status' => EntitlementStatus::Active,
-    ], $overrides));
+    return array_merge([
+        'member_id' => $member->id,
+        'source' => CreditSource::Topup,
+        'amount_paid' => '100.00',
+        'bonus_amount' => '0.00',
+        'paid_remaining' => '100.00',
+        'bonus_remaining' => '0.00',
+        'expires_at' => null,
+        'status' => CreditLotStatus::Active,
+        'purchased_at' => now(),
+    ], $overrides);
 }
 
-it('casts Entitlement::status to an EntitlementStatus instance after reload', function () {
-    $ent = makeEnumEntitlement($this->lot, ['status' => EntitlementStatus::Active]);
+it('casts a real top-up lot + rows to their enum instances (happy path via WalletService)', function () {
+    $lot = app(WalletService::class)->topUp($this->member, '1000.00', '100.00', CreditSource::Topup, null);
 
-    $fresh = Entitlement::query()->findOrFail($ent->id);
+    $freshLot = CreditLot::query()->findOrFail($lot->id);
+    expect($freshLot->source)->toBeInstanceOf(CreditSource::class);
+    expect($freshLot->source)->toBe(CreditSource::Topup);
+    expect($freshLot->status)->toBeInstanceOf(CreditLotStatus::class);
+    expect($freshLot->status)->toBe(CreditLotStatus::Active);
 
-    expect($fresh->status)->toBeInstanceOf(EntitlementStatus::class);
-    expect($fresh->status)->toBe(EntitlementStatus::Active);
+    $rows = CreditLedger::query()->where('credit_lot_id', $lot->id)->orderBy('id')->get();
+    expect($rows[0]->reason)->toBeInstanceOf(CreditLedgerReason::class);
+    expect($rows[0]->reason)->toBe(CreditLedgerReason::Topup);
+    expect($rows[1]->reason)->toBe(CreditLedgerReason::Bonus);
 });
 
-it('round-trips each EntitlementStatus case on Entitlement', function () {
-    foreach (EntitlementStatus::cases() as $case) {
-        $ent = makeEnumEntitlement($this->lot, ['status' => $case]);
-        $fresh = Entitlement::query()->findOrFail($ent->id);
+it('round-trips every CreditSource case on a lot', function () {
+    foreach (CreditSource::cases() as $case) {
+        $lot = CreditLot::create(enumCastLotPayload($this->member, ['source' => $case]));
+        $fresh = CreditLot::query()->findOrFail($lot->id);
 
+        expect($fresh->source)->toBe($case);
+        expect($fresh->source->value)->toBe($case->value);
+    }
+});
+
+it('round-trips every CreditLotStatus case on a lot', function () {
+    foreach (CreditLotStatus::cases() as $case) {
+        $lot = CreditLot::create(enumCastLotPayload($this->member, ['status' => $case]));
+        $fresh = CreditLot::query()->findOrFail($lot->id);
+
+        expect($fresh->status)->toBeInstanceOf(CreditLotStatus::class);
         expect($fresh->status)->toBe($case);
-        // Underlying stored value matches the backing string.
         expect($fresh->status->value)->toBe($case->value);
     }
 });
 
-it('casts Entitlement::item_type to an ItemType instance after reload', function () {
-    $service = makeEnumEntitlement($this->lot, ['item_code' => 'MASSAGE_60', 'item_type' => ItemType::Service]);
-    $addon = makeEnumEntitlement($this->lot, ['item_code' => 'HOT_STONE', 'item_type' => ItemType::Addon]);
+it('round-trips every CreditLedgerReason case on a ledger row', function () {
+    $lot = CreditLot::create(enumCastLotPayload($this->member));
 
-    expect(Entitlement::query()->findOrFail($service->id)->item_type)->toBe(ItemType::Service);
-    expect(Entitlement::query()->findOrFail($addon->id)->item_type)->toBe(ItemType::Addon);
-});
-
-it('casts MemberPackage::status to an EntitlementStatus instance (shared vocab §5.7)', function () {
-    $lot = MemberPackage::create([
-        'member_id' => $this->member->id,
-        'branch_id' => $this->branch->id,
-        'purchased_at' => now(),
-        'expires_at' => now()->addMonth(),
-        'price_paid' => '999.00',
-        'status' => EntitlementStatus::UsedUp,
-    ]);
-
-    $fresh = MemberPackage::query()->findOrFail($lot->id);
-
-    expect($fresh->status)->toBeInstanceOf(EntitlementStatus::class);
-    expect($fresh->status)->toBe(EntitlementStatus::UsedUp);
-});
-
-it('casts EntitlementLedger::reason to a LedgerReason instance after reload', function () {
-    $ent = makeEnumEntitlement($this->lot);
-
-    $row = EntitlementLedger::create([
-        'entitlement_id' => $ent->id,
-        'member_id' => $this->member->id,
-        'delta' => 5,
-        'reason' => LedgerReason::Purchase,
-        'balance_after' => 5,
-    ]);
-
-    $fresh = EntitlementLedger::query()->findOrFail($row->id);
-
-    expect($fresh->reason)->toBeInstanceOf(LedgerReason::class);
-    expect($fresh->reason)->toBe(LedgerReason::Purchase);
-});
-
-it('round-trips every LedgerReason case on a ledger row', function () {
-    $ent = makeEnumEntitlement($this->lot);
-
-    foreach (LedgerReason::cases() as $case) {
-        $row = EntitlementLedger::create([
-            'entitlement_id' => $ent->id,
+    foreach (CreditLedgerReason::cases() as $case) {
+        $row = CreditLedger::create([
             'member_id' => $this->member->id,
+            'credit_lot_id' => $lot->id,
             // Sign convention isn't enforced here — balance_after kept >= 0 for the CHECK.
-            'delta' => $case === LedgerReason::Redeem || $case === LedgerReason::Expire ? -1 : 1,
+            'delta' => in_array($case, [CreditLedgerReason::Debit, CreditLedgerReason::Refund, CreditLedgerReason::Expire], true) ? '-1.00' : '1.00',
             'reason' => $case,
-            'balance_after' => 1,
+            'balance_after' => '1.00',
+            'created_at' => now(),
         ]);
 
-        $fresh = EntitlementLedger::query()->findOrFail($row->id);
+        $fresh = CreditLedger::query()->findOrFail($row->id);
+        expect($fresh->reason)->toBeInstanceOf(CreditLedgerReason::class);
         expect($fresh->reason)->toBe($case);
         expect($fresh->reason->value)->toBe($case->value);
     }

@@ -1,7 +1,7 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Admin\BookingController::index
-* @see app/Http/Controllers/Admin/BookingController.php:53
+* @see app/Http/Controllers/Admin/BookingController.php:58
 * @route '/bookings'
 */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::index
-* @see app/Http/Controllers/Admin/BookingController.php:53
+* @see app/Http/Controllers/Admin/BookingController.php:58
 * @route '/bookings'
 */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::index
-* @see app/Http/Controllers/Admin/BookingController.php:53
+* @see app/Http/Controllers/Admin/BookingController.php:58
 * @route '/bookings'
 */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -35,7 +35,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::index
-* @see app/Http/Controllers/Admin/BookingController.php:53
+* @see app/Http/Controllers/Admin/BookingController.php:58
 * @route '/bookings'
 */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,45 +44,8 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
 /**
-* @see \App\Http\Controllers\Admin\BookingController::index
-* @see app/Http/Controllers/Admin/BookingController.php:53
-* @route '/bookings'
-*/
-const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url(options),
-    method: 'get',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BookingController::index
-* @see app/Http/Controllers/Admin/BookingController.php:53
-* @route '/bookings'
-*/
-indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url(options),
-    method: 'get',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BookingController::index
-* @see app/Http/Controllers/Admin/BookingController.php:53
-* @route '/bookings'
-*/
-indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-    action: index.url({
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'HEAD',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'get',
-})
-
-index.form = indexForm
-
-/**
 * @see \App\Http\Controllers\Admin\BookingController::store
-* @see app/Http/Controllers/Admin/BookingController.php:87
+* @see app/Http/Controllers/Admin/BookingController.php:92
 * @route '/bookings'
 */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -97,7 +60,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::store
-* @see app/Http/Controllers/Admin/BookingController.php:87
+* @see app/Http/Controllers/Admin/BookingController.php:92
 * @route '/bookings'
 */
 store.url = (options?: RouteQueryOptions) => {
@@ -106,7 +69,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::store
-* @see app/Http/Controllers/Admin/BookingController.php:87
+* @see app/Http/Controllers/Admin/BookingController.php:92
 * @route '/bookings'
 */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -115,30 +78,8 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 })
 
 /**
-* @see \App\Http\Controllers\Admin\BookingController::store
-* @see app/Http/Controllers/Admin/BookingController.php:87
-* @route '/bookings'
-*/
-const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: store.url(options),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BookingController::store
-* @see app/Http/Controllers/Admin/BookingController.php:87
-* @route '/bookings'
-*/
-storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: store.url(options),
-    method: 'post',
-})
-
-store.form = storeForm
-
-/**
 * @see \App\Http\Controllers\Admin\BookingController::checkIn
-* @see app/Http/Controllers/Admin/BookingController.php:123
+* @see app/Http/Controllers/Admin/BookingController.php:133
 * @route '/bookings/{booking}/check-in'
 */
 export const checkIn = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -153,7 +94,7 @@ checkIn.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::checkIn
-* @see app/Http/Controllers/Admin/BookingController.php:123
+* @see app/Http/Controllers/Admin/BookingController.php:133
 * @route '/bookings/{booking}/check-in'
 */
 checkIn.url = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -186,7 +127,7 @@ checkIn.url = (args: { booking: number | { id: number } } | [booking: number | {
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::checkIn
-* @see app/Http/Controllers/Admin/BookingController.php:123
+* @see app/Http/Controllers/Admin/BookingController.php:133
 * @route '/bookings/{booking}/check-in'
 */
 checkIn.post = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -195,30 +136,8 @@ checkIn.post = (args: { booking: number | { id: number } } | [booking: number | 
 })
 
 /**
-* @see \App\Http\Controllers\Admin\BookingController::checkIn
-* @see app/Http/Controllers/Admin/BookingController.php:123
-* @route '/bookings/{booking}/check-in'
-*/
-const checkInForm = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: checkIn.url(args, options),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BookingController::checkIn
-* @see app/Http/Controllers/Admin/BookingController.php:123
-* @route '/bookings/{booking}/check-in'
-*/
-checkInForm.post = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: checkIn.url(args, options),
-    method: 'post',
-})
-
-checkIn.form = checkInForm
-
-/**
 * @see \App\Http\Controllers\Admin\BookingController::noShow
-* @see app/Http/Controllers/Admin/BookingController.php:150
+* @see app/Http/Controllers/Admin/BookingController.php:179
 * @route '/bookings/{booking}/no-show'
 */
 export const noShow = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -233,7 +152,7 @@ noShow.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::noShow
-* @see app/Http/Controllers/Admin/BookingController.php:150
+* @see app/Http/Controllers/Admin/BookingController.php:179
 * @route '/bookings/{booking}/no-show'
 */
 noShow.url = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -266,7 +185,7 @@ noShow.url = (args: { booking: number | { id: number } } | [booking: number | { 
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::noShow
-* @see app/Http/Controllers/Admin/BookingController.php:150
+* @see app/Http/Controllers/Admin/BookingController.php:179
 * @route '/bookings/{booking}/no-show'
 */
 noShow.post = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -275,30 +194,8 @@ noShow.post = (args: { booking: number | { id: number } } | [booking: number | {
 })
 
 /**
-* @see \App\Http\Controllers\Admin\BookingController::noShow
-* @see app/Http/Controllers/Admin/BookingController.php:150
-* @route '/bookings/{booking}/no-show'
-*/
-const noShowForm = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: noShow.url(args, options),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BookingController::noShow
-* @see app/Http/Controllers/Admin/BookingController.php:150
-* @route '/bookings/{booking}/no-show'
-*/
-noShowForm.post = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: noShow.url(args, options),
-    method: 'post',
-})
-
-noShow.form = noShowForm
-
-/**
 * @see \App\Http\Controllers\Admin\BookingController::cancel
-* @see app/Http/Controllers/Admin/BookingController.php:172
+* @see app/Http/Controllers/Admin/BookingController.php:201
 * @route '/bookings/{booking}'
 */
 export const cancel = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -313,7 +210,7 @@ cancel.definition = {
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::cancel
-* @see app/Http/Controllers/Admin/BookingController.php:172
+* @see app/Http/Controllers/Admin/BookingController.php:201
 * @route '/bookings/{booking}'
 */
 cancel.url = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -346,45 +243,13 @@ cancel.url = (args: { booking: number | { id: number } } | [booking: number | { 
 
 /**
 * @see \App\Http\Controllers\Admin\BookingController::cancel
-* @see app/Http/Controllers/Admin/BookingController.php:172
+* @see app/Http/Controllers/Admin/BookingController.php:201
 * @route '/bookings/{booking}'
 */
 cancel.delete = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
     url: cancel.url(args, options),
     method: 'delete',
 })
-
-/**
-* @see \App\Http\Controllers\Admin\BookingController::cancel
-* @see app/Http/Controllers/Admin/BookingController.php:172
-* @route '/bookings/{booking}'
-*/
-const cancelForm = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: cancel.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'DELETE',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BookingController::cancel
-* @see app/Http/Controllers/Admin/BookingController.php:172
-* @route '/bookings/{booking}'
-*/
-cancelForm.delete = (args: { booking: number | { id: number } } | [booking: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: cancel.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'DELETE',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-cancel.form = cancelForm
 
 const BookingController = { index, store, checkIn, noShow, cancel }
 

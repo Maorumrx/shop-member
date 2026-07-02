@@ -16,7 +16,10 @@ return [
     */
 
     'ssr' => [
-        'enabled' => true,
+        // Env-overridable so the test suite can turn SSR OFF (tests must not depend
+        // on a running node SSR server / a freshly-built SSR bundle). Prod default
+        // stays true; see phpunit.xml (INERTIA_SSR_ENABLED=false).
+        'enabled' => env('INERTIA_SSR_ENABLED', true),
         'url' => 'http://127.0.0.1:13714',
         // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
 

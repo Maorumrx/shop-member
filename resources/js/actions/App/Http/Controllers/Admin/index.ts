@@ -1,18 +1,20 @@
 import BranchController from './BranchController'
-import PackageController from './PackageController'
+import ServiceController from './ServiceController'
+import TopupOfferController from './TopupOfferController'
+import MemberWalletController from './MemberWalletController'
 import ShopSettingController from './ShopSettingController'
 import MemberController from './MemberController'
-import PurchaseController from './PurchaseController'
-import RedemptionController from './RedemptionController'
+import TopupController from './TopupController'
 import BookingController from './BookingController'
 
 const Admin = {
     BranchController: Object.assign(BranchController, BranchController),
-    PackageController: Object.assign(PackageController, PackageController),
+    ServiceController: Object.assign(ServiceController, ServiceController),
+    TopupOfferController: Object.assign(TopupOfferController, TopupOfferController),
+    MemberWalletController: Object.assign(MemberWalletController, MemberWalletController),
     ShopSettingController: Object.assign(ShopSettingController, ShopSettingController),
     MemberController: Object.assign(MemberController, MemberController),
-    PurchaseController: Object.assign(PurchaseController, PurchaseController),
-    RedemptionController: Object.assign(RedemptionController, RedemptionController),
+    TopupController: Object.assign(TopupController, TopupController),
     BookingController: Object.assign(BookingController, BookingController),
 }
 

@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Admin\BranchController::update
 * @see app/Http/Controllers/Admin/BranchController.php:127
@@ -56,38 +56,6 @@ update.put = (args: { branch: number | { id: number } } | [branch: number | { id
     url: update.url(args, options),
     method: 'put',
 })
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::update
-* @see app/Http/Controllers/Admin/BranchController.php:127
-* @route '/branches/{branch}/booking-settings'
-*/
-const updateForm = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: update.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'PUT',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-/**
-* @see \App\Http\Controllers\Admin\BranchController::update
-* @see app/Http/Controllers/Admin/BranchController.php:127
-* @route '/branches/{branch}/booking-settings'
-*/
-updateForm.put = (args: { branch: number | { id: number } } | [branch: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-    action: update.url(args, {
-        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-            _method: 'PUT',
-            ...(options?.query ?? options?.mergeQuery ?? {}),
-        }
-    }),
-    method: 'post',
-})
-
-update.form = updateForm
 
 const bookingSettings = {
     update: Object.assign(update, update),

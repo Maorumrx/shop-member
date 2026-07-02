@@ -6,8 +6,8 @@ namespace App\Services\Line;
 
 use App\Jobs\SendLineMessage;
 use App\Models\Booking;
+use App\Models\CreditLot;
 use App\Models\Member;
-use App\Models\MemberPackage;
 use App\Models\Setting;
 use Carbon\CarbonInterface;
 
@@ -93,19 +93,38 @@ final class MemberNotifier
     }
 
     /**
-     * Redemption receipt after staff deducts a member's entitlement (counter
-     * redeem OR booking check-in). Reports the item, how many units were taken,
-     * and the member's remaining balance for that item.
+     * Top-up confirmation after staff sells credit to a member (WalletService::topUp).
+     * Reports the member's new spendable wallet balance. Fired AFTER the top-up
+     * committed; no-op if the member isn't LINE-linked.
      *
-     * @param  string  $itemName   Human label of the redeemed item.
-     * @param  int     $qtyTaken   Units deducted for the DIRECTLY-requested item.
-     * @param  int     $remaining  The member's remaining balance for that item.
+     * @param  string  $newBalance  The member's spendable balance after the top-up
+     *                              (decimal-2 STRING, §5.6).
      */
-    public function redemptionReceipt(Member $member, string $itemName, int $qtyTaken, int $remaining): void
+    public function topupReceipt(Member $member, string $newBalance): void
     {
         $this->dispatch(
             $member,
-            "🧾 ใช้บริการ {$itemName} x{$qtyTaken} • คงเหลือ {$remaining} ครั้ง\n"
+            "💳 เติมเครดิตสำเร็จ\n"
+            . "เครดิตคงเหลือ: {$this->baht($newBalance)} บาท\n"
+            . 'ขอบคุณที่ใช้บริการค่ะ 🙏',
+        );
+    }
+
+    /**
+     * Service-charge receipt after a wallet DEBIT (counter manual charge OR booking
+     * check-in). Reports the service, the amount charged, and the member's remaining
+     * wallet balance. Fired AFTER the debit committed; no-op if not LINE-linked.
+     *
+     * @param  string  $itemName   Human label of the charged service.
+     * @param  string  $amount     Baht debited for this service (decimal-2 STRING).
+     * @param  string  $remaining  The member's remaining spendable balance (decimal-2 STRING).
+     */
+    public function serviceChargeReceipt(Member $member, string $itemName, string $amount, string $remaining): void
+    {
+        $this->dispatch(
+            $member,
+            "🧾 ใช้บริการ {$itemName} • หัก {$this->baht($amount)} บาท\n"
+            . "เครดิตคงเหลือ: {$this->baht($remaining)} บาท\n"
             . 'ขอบคุณที่ใช้บริการค่ะ 🙏',
         );
     }
@@ -136,14 +155,17 @@ final class MemberNotifier
     }
 
     /**
-     * Near-expiry reminder for an owned lot (members:remind-expiry, within 7 days
-     * of `expires_at`). Fired once per lot, guarded by
-     * `member_packages.expiry_reminded_at` at the command level.
+     * Near-expiry reminder for an owned credit lot (members:remind-expiry, within 7
+     * days of `expires_at`). Fired once per lot, guarded by
+     * `credit_lots.expiry_reminded_at` at the command level.
      *
-     * @param  MemberPackage  $lot        The lot whose expiry is approaching.
-     * @param  int            $remaining  Total redeemable units left in the lot.
+     * NOTE: expiry stays OFF (every lot ships with `expires_at = null`), so this is
+     * never fired in practice — kept wired so enabling expiry needs no code change.
+     *
+     * @param  CreditLot  $lot        The lot whose expiry is approaching.
+     * @param  string     $remaining  Spendable baht left in the lot (decimal-2 STRING).
      */
-    public function nearExpiry(MemberPackage $lot, int $remaining): void
+    public function nearExpiry(CreditLot $lot, string $remaining): void
     {
         $member = $lot->member;
 
@@ -157,10 +179,10 @@ final class MemberNotifier
 
         $this->dispatch(
             $member,
-            "⚠️ แพ็กเกจของคุณใกล้หมดอายุ\n"
+            "⚠️ เครดิตของคุณใกล้หมดอายุ\n"
             . "หมดอายุ: {$date}\n"
-            . "คงเหลือ: {$remaining} ครั้ง\n"
-            . 'รีบใช้สิทธิ์ก่อนหมดอายุนะคะ',
+            . "คงเหลือ: {$this->baht($remaining)} บาท\n"
+            . 'รีบใช้เครดิตก่อนหมดอายุนะคะ',
         );
     }
 
@@ -178,6 +200,17 @@ final class MemberNotifier
         }
 
         SendLineMessage::dispatch($lineUserId, $text);
+    }
+
+    /**
+     * Format a decimal-2 money STRING for the customer's inbox with thousands
+     * separators and 2 dp (e.g. "10000.00" → "10,000.00"). Parses via bcmath scale
+     * 2 first so a stray "300" renders "300.00"; the money value itself is never
+     * treated as a native float for arithmetic (§5.6) — this is display-only.
+     */
+    private function baht(string $amount): string
+    {
+        return number_format((float) bcadd($amount, '0', 2), 2);
     }
 
     /**

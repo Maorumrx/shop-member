@@ -2,32 +2,30 @@
 
 declare(strict_types=1);
 
-// Phase 4 — Member admin (MemberController + Store/UpdateMemberRequest,
-// architecture.md §3.3). Routes live behind ['auth','verified','role:owner,staff'] in
-// routes/admin.php (no uri prefix), so the members surface is OWNER AND STAFF — staff
-// are front-desk operators (NOT 403 here, unlike the owner-only catalog).
+// Member admin (MemberController + Store/UpdateMemberRequest, §3.3). Routes live behind
+// ['auth','verified','role:owner,staff'] in routes/admin.php (no uri prefix), so the
+// members surface is OWNER AND STAFF (staff are front-desk operators — NOT 403 here).
 //
 // Contracts under test:
 //   - access gate: a guest is redirected to login; both owner AND staff reach
-//     GET /members (Inertia Admin/Members/Index) and GET /members/{member}
-//     (Admin/Members/Show).
+//     GET /members (Admin/Members/Index) and GET /members/{member} (Admin/Members/Show).
 //   - index ?q= searches name OR phone (LIKE) and returns only matching rows.
-//   - store creates a member but `line_user_id` is NOT mass-assignable here
-//     (StoreMemberRequest whitelists name/phone/email/is_active) — a POST including
-//     line_user_id yields a member with line_user_id === null (injection blocked, §3.3).
-//   - update toggles is_active (unchecked box → deactivate, UpdateMemberRequest default).
-//   - show's `balanceByType` Inertia prop sums qty_remaining per item across the
-//     member's ACTIVE, non-expired entitlements (a single grouped query, §6.4).
+//   - store creates a member but `line_user_id` is NOT mass-assignable (whitelist).
+//   - update toggles is_active (unchecked box → deactivate).
+//   - show exposes the money-wallet projections: a single `balance` string, active
+//     `lots`, and the `history` feed (with staff_name for admin), plus the sell inputs
+//     (`topupOffers`, `services`) — the money-wallet reframe of the dropped balanceByType.
 //
-// Flash is Inertia::flash('toast', ...) — asserted via redirect + DB state. Inertia
-// component/prop assertions need no JS build (cf. CatalogAccessTest).
+// Wallet state is seeded ONLY via WalletService::topUp so the numbers are honest. Flash
+// is Inertia::flash('toast', ...); Inertia prop assertions need no JS build.
 
-use App\Enums\ItemType;
+use App\Enums\CreditSource;
 use App\Enums\UserRole;
 use App\Models\Member;
-use App\Models\Package;
+use App\Models\Service;
+use App\Models\TopupOffer;
 use App\Models\User;
-use App\Services\Purchase\PurchaseService;
+use App\Services\Wallet\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
 
@@ -102,7 +100,6 @@ it('filters the index by name via ?q= (name LIKE)', function () {
             ->has('members.data', 1)
             ->where('members.data.0.id', $alice->id));
 
-    // sanity: Bob is not in the filtered result
     expect($bob->id)->not->toBe($alice->id);
 });
 
@@ -143,8 +140,6 @@ it('blocks line_user_id injection on store (not in the request whitelist)', func
             'name' => 'No LINE Yet',
             'phone' => '0855555555',
             'is_active' => true,
-            // Attempt to set the LINE link directly — StoreMemberRequest does not
-            // accept it, so the created member stays unlinked (§3.3).
             'line_user_id' => 'U_injected_line_id',
         ])
         ->assertRedirect(route('members.index'));
@@ -182,63 +177,50 @@ it('toggles is_active back to true via PUT /members/{member}', function () {
     $this->assertDatabaseHas('members', ['id' => $member->id, 'is_active' => true]);
 });
 
-it('exposes a balanceByType aggregate on show summing qty_remaining per item', function () {
+it('exposes the wallet balance, active lots, and staff-aware history on show', function () {
     $owner = memberAdminUser(UserRole::Owner);
     $member = memberAdminMember();
 
-    // Sell a package (service qty 10, addon qty 3) via the service so the ledger +
-    // entitlements are minted exactly as production does.
-    $package = Package::create([
-        'name' => 'Balance Package',
-        'price' => '1290.00',
-        'valid_days' => 30,
-        'branch_id' => null,
-        'is_active' => true,
-    ]);
-    $package->lines()->createMany([
-        ['item_code' => 'SVC1', 'item_name' => 'Massage 60', 'item_type' => ItemType::Service, 'qty' => 10],
-        ['item_code' => 'ADD1', 'item_name' => 'Hot stone', 'item_type' => ItemType::Addon, 'qty' => 3],
-    ]);
-    app(PurchaseService::class)->purchase($member, $package, '1290.00', $owner);
+    // Seed a top-up (paid 1000 + bonus 200) via the money authority, acting staff = owner.
+    app(WalletService::class)->topUp($member, '1000.00', '200.00', CreditSource::Topup, $owner);
 
     $this->actingAs($owner)
         ->get(route('members.show', $member))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Admin/Members/Show')
-            ->has('balanceByType', 2)
-            // remainingByType orders by item_name: "Hot stone" (3) before "Massage 60" (10).
-            ->where('balanceByType.0.item_code', 'ADD1')
-            ->where('balanceByType.0.remaining', 3)
-            ->where('balanceByType.1.item_code', 'SVC1')
-            ->where('balanceByType.1.remaining', 10));
+            // ONE spendable-balance figure (decimal-2 string), not a per-type map.
+            ->where('balance', '1200.00')
+            // Exactly one active lot, with its total remaining.
+            ->has('lots', 1)
+            ->where('lots.0.amount_paid', '1000.00')
+            ->where('lots.0.bonus_amount', '200.00')
+            ->where('lots.0.total_remaining', '1200.00')
+            // History newest-first: bonus row (id higher) then topup row.
+            ->has('history', 2)
+            ->where('history.0.reason', 'bonus')
+            ->where('history.0.delta', '200.00')
+            ->where('history.1.reason', 'topup')
+            // Admin history keeps WHO performed the movement.
+            ->where('history.1.staff_name', $owner->name)
+            ->etc());
 });
 
-it('sums qty_remaining across multiple lots of the same item in balanceByType', function () {
+it('exposes the top-up presets and priced services for the sell/charge inputs on show', function () {
     $owner = memberAdminUser(UserRole::Owner);
     $member = memberAdminMember();
 
-    // Two sales of a single-line package (SVC1 qty 10 each) → balance sums to 20.
-    $package = Package::create([
-        'name' => 'Single Line',
-        'price' => '500.00',
-        'valid_days' => 30,
-        'branch_id' => null,
-        'is_active' => true,
-    ]);
-    $package->lines()->create([
-        'item_code' => 'SVC1', 'item_name' => 'Massage 60', 'item_type' => ItemType::Service, 'qty' => 10,
-    ]);
-
-    app(PurchaseService::class)->purchase($member, $package, '500.00', $owner);
-    app(PurchaseService::class)->purchase($member, $package, '500.00', $owner);
+    TopupOffer::create(['name' => 'Preset', 'amount' => '5000.00', 'bonus' => '500.00', 'is_active' => true, 'sort_order' => 1]);
+    Service::create(['item_code' => 'MASSAGE_60', 'name' => 'Thai Massage 60', 'price' => '300.00', 'branch_id' => null, 'is_active' => true]);
 
     $this->actingAs($owner)
         ->get(route('members.show', $member))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Admin/Members/Show')
-            ->has('balanceByType', 1)
-            ->where('balanceByType.0.item_code', 'SVC1')
-            ->where('balanceByType.0.remaining', 20));
+            ->has('topupOffers', 1)
+            ->where('topupOffers.0.amount', '5000.00')
+            ->has('services', 1)
+            ->where('services.0.item_code', 'MASSAGE_60')
+            ->etc());
 });
