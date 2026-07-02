@@ -1,5 +1,6 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
+    "name": "shop-member",
     "private": true,
     "type": "module",
     "scripts": {

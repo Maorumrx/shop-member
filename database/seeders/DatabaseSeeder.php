@@ -26,8 +26,8 @@ class DatabaseSeeder extends Seeder
             ['is_active' => true],
         );
 
-        $this->seedAdmin('owner@shop.test', 'Owner', UserRole::Owner, $branch->id);
-        $this->seedAdmin('staff@shop.test', 'Staff', UserRole::Staff, $branch->id);
+        $this->seedAdmin('owner@bstm.com', 'Owner', UserRole::Owner, $branch->id);
+        $this->seedAdmin('staff@bstm.com', 'Staff', UserRole::Staff, $branch->id);
     }
 
     private function seedAdmin(string $email, string $name, UserRole $role, int $branchId): void
